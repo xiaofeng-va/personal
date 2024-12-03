@@ -26,7 +26,7 @@ jobs:
         run: cargo doc --no-deps --all-features
 
       - name: Fix index.html
-        run: echo "<meta http-equiv=\"refresh\" content=\"0; url=varst\">" > target/doc/index.html
+        run: echo "<meta http-equiv=\"refresh\" content=\"0; url=ferox\">" > target/doc/index.html
 
       - name: Create upload artifact
         uses: actions/upload-pages-artifact@v1
