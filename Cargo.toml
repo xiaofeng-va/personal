@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "ferox",
+]
+resolver = "2"
