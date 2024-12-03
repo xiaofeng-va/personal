@@ -1,5 +1,8 @@
 use embedded_io::{Read, Write};
 
+/// Driver for CTL200 Laser Controller
+///
+/// See <https://www.koheron.com/support/user-guides/ctl200/>.
 pub struct Ctl200<U>
 where
     U: Read + Write + 'static,
