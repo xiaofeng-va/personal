@@ -4,3 +4,15 @@ members = [
     "ferox",
 ]
 resolver = "2"
+
+[profile.dev]
+debug = true
+lto = true
+opt-level = "z"
+incremental = true
+
+[profile.release]
+debug = false
+lto = true
+opt-level = "z"
+incremental = true
