@@ -3,9 +3,13 @@
 
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_stm32::usart::{BasicInstance, Config, Uart};
+use embassy_stm32::peripherals::{DMA1_CH0, DMA1_CH1, UART7};
+use embassy_stm32::usart::{Config, Uart, UartRx, UartTx};
 use embassy_stm32::{bind_interrupts, peripherals, usart};
-use embassy_time::{Duration, Timer};
+use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
+use embassy_sync::channel::Channel;
+use embassy_time::Timer;
+use heapless::Vec;
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
@@ -16,41 +20,74 @@ const CRLF: &[u8] = b"\r\n";
 const VERSION_CMD: &[u8] = b"version\r\n";
 const PROMPT: &[u8] = b">>";
 
-async fn wait_for_prompt<'d, T: BasicInstance, TxDma, RxDma>(
-    usart: &mut Uart<'d, T, TxDma, RxDma>
-) -> bool {
-    let mut rx_buf = [0u8; 2];
-    unwrap!(usart.blocking_write(CRLF));
-    info!("Sent CRLF");
+static CHAR_CHANNEL: Channel<ThreadModeRawMutex, u8, 32> = Channel::new();
 
-    Timer::after(Duration::from_millis(1000)).await;
-
-    match usart.blocking_read(&mut rx_buf) {
-        Ok(()) if &rx_buf == PROMPT => {
-            info!("Prompt received!");
-            true
+#[embassy_executor::task]
+async fn uart_reader(mut uart: UartRx<'static, UART7, DMA1_CH1>) {
+    info!("uart_reader started");
+    loop {
+        let mut buffer: Vec<u8, 32> = Vec::new();
+        loop {
+            match uart.nb_read() {
+                Ok(x) => {
+                    // info!("ok {}", x);
+                    buffer.push(x).unwrap();
+                }
+                Err(e) => {
+                    // info!("err: {}", Debug2Format(&e));
+                    break;
+                }
+            }
+            // Adding a short delay to ensure nb_read() can read the last character,
+            // otherwise it might return before the character arrives, causing it to be missed.
+            Timer::after_micros(1).await;
         }
-        _ => {
-            info!("No prompt received, retrying...");
-            false
+        if buffer.len() > 0 {
+            info!("uart_reader(): Read buffer: {:x}", buffer.as_slice());
+            for &b in buffer.iter() {
+                CHAR_CHANNEL.send(b).await;
+            }
         }
+        Timer::after_millis(100).await;
     }
 }
 
-async fn read_response<'d, T: BasicInstance, TxDma, RxDma>(
-    usart: &mut Uart<'d, T, TxDma, RxDma>
-) {
-    let mut byte = [0u8; 1];
-    loop {
-        match usart.blocking_read(&mut byte) {
-            Ok(()) => {
-                info!("Received char: '{}' (0x{=[u8]:x})", byte[0] as char, byte);
+#[embassy_executor::task]
+async fn char_processor(mut uart: UartTx<'static, UART7, DMA1_CH0>) {
+    let mut buffer: Vec<u8, 32> = Vec::new();
+    info!("char_processor started");
+    // Initial loop to send CRLF until PROMPT is received
+    async fn wait_for_prompt(buffer: &mut Vec<u8, 32>) {
+        buffer.clear();
+        loop {
+            let char = CHAR_CHANNEL.receive().await;
+            buffer.extend_from_slice(&[char]).unwrap();
+
+            if buffer.ends_with(PROMPT) {
+                return;
             }
-            Err(e) => {
-                info!("Read error: {:?}", Debug2Format(&e));
-                Timer::after(Duration::from_millis(100)).await;
+
+            if buffer.len() >= 32 {
+                info!("Buffer overflow, content: {:x}", buffer.as_slice());
+                buffer.clear();
             }
         }
+    }
+
+    unwrap!(uart.blocking_write(CRLF));
+    info!("Sent CRLF");
+    Timer::after_millis(1000).await;
+    wait_for_prompt(&mut buffer).await;
+    info!(
+        "Buffer content after wait_for_prompt: {:x}",
+        buffer.as_slice()
+    );
+    unwrap!(uart.blocking_write(VERSION_CMD));
+    info!("Sent 'version' command after initial loop");
+    wait_for_prompt(&mut buffer).await;
+    info!("PASS");
+    loop {
+        Timer::after_millis(1000).await;
     }
 }
 
@@ -60,14 +97,15 @@ async fn main(spawner: Spawner) -> ! {
     info!("CTL200 Test Starting!");
 
     let config = Config::default();
-    let mut usart = Uart::new(p.UART7, p.PF6, p.PF7, Irqs, p.DMA1_CH0, p.DMA1_CH1, config).unwrap();
+    let uart = Uart::new(p.UART7, p.PF6, p.PF7, Irqs, p.DMA1_CH0, p.DMA1_CH1, config).unwrap();
+
+    // Split UART for different tasks
+    let (tx, rx) = uart.split();
+
+    unwrap!(spawner.spawn(uart_reader(rx)));
+    unwrap!(spawner.spawn(char_processor(tx)));
 
     loop {
-        if wait_for_prompt(&mut usart).await {
-            unwrap!(usart.blocking_write(VERSION_CMD));
-            info!("Sent version command");
-            read_response(&mut usart).await;
-        }
-        Timer::after(Duration::from_millis(1000)).await;
+        Timer::after_millis(1000).await;
     }
 }

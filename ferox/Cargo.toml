@@ -35,6 +35,9 @@ debug = [
     "embassy-stm32/defmt",
 ]
 
+[dev-dependencies]
+heapless = "0.8"
+
 [[example]]
 name = "blinky"
 path = "examples/blinky.rs"
