@@ -24,8 +24,10 @@ You should be able to connect the two devices.
 
 ### CTL200
 
-![CTL200 Wiring Diagram](static/ctl200-wiring.png)
-CTL200 <=(UART)=> NUCLEO (STM32H723ZGT6)
+#### Wiring (STM32 <=> CTL200)
+PF6 (RX) <=> CTL200 TX
+PF7 (TX) <=> CTL200 RX
+GND <=> CTL200 GND
 
 Based on the wiring, you can run command below to connect CTL200 and STM32:
 ```shell
