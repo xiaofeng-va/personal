@@ -2,15 +2,18 @@
 #![no_main]
 
 use defmt::*;
+use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_stm32::peripherals::{DMA1_CH0, DMA1_CH1, UART7};
-use embassy_stm32::usart::{Config, Uart, UartRx, UartTx};
-use embassy_stm32::{bind_interrupts, peripherals, usart};
-use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
-use embassy_sync::channel::Channel;
+use embassy_stm32::{
+    bind_interrupts, peripherals,
+    peripherals::{DMA1_CH0, DMA1_CH1, UART7},
+    usart,
+    usart::{Config, Uart, UartRx, UartTx},
+};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embassy_time::Timer;
 use heapless::Vec;
-use {defmt_rtt as _, panic_probe as _};
+use panic_probe as _;
 
 bind_interrupts!(struct Irqs {
     UART7 => usart::InterruptHandler<peripherals::UART7>;
@@ -27,22 +30,13 @@ async fn uart_reader(mut uart: UartRx<'static, UART7, DMA1_CH1>) {
     info!("uart_reader started");
     loop {
         let mut buffer: Vec<u8, 32> = Vec::new();
-        loop {
-            match uart.nb_read() {
-                Ok(x) => {
-                    // info!("ok {}", x);
-                    buffer.push(x).unwrap();
-                }
-                Err(e) => {
-                    // info!("err: {}", Debug2Format(&e));
-                    break;
-                }
-            }
+        while let Ok(x) = uart.nb_read() {
+            buffer.push(x).unwrap();
             // Adding a short delay to ensure nb_read() can read the last character,
             // otherwise it might return before the character arrives, causing it to be missed.
             Timer::after_micros(1).await;
         }
-        if buffer.len() > 0 {
+        if buffer.is_empty() {
             info!("uart_reader(): Read buffer: {:x}", buffer.as_slice());
             for &b in buffer.iter() {
                 CHAR_CHANNEL.send(b).await;
