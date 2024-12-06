@@ -16,3 +16,7 @@ target = "thumbv7em-none-eabi"
 
 [env]
 DEFMT_LOG = "trace"
+
+[alias]
+rx = "run --package ferox --features debug --example"
+bx = "build --package ferox --features debug --example"
