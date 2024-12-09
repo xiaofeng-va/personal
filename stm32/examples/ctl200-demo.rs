@@ -16,9 +16,10 @@ use embassy_time::Timer;
 use embedded_io::ErrorType;
 use embedded_io_async::{Read, Write};
 use ferox::{
-    drivers::koheron::ctl200::{Ctl200, Error, FIRMWARE_VERSION},
+    drivers::koheron::ctl200::{Ctl200, Error},
     error, info,
 };
+use ferox_stm32::ctl200::FIRMWARE_VERSION;
 use panic_halt as _;
 use static_cell::StaticCell;
 

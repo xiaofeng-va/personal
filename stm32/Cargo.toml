@@ -7,9 +7,6 @@ edition = "2021"
 ferox = { version = "*", path = "../ferox", features = ["defmt"] }
 
 [dev-dependencies]
-embedded-hal-async = "1.0.0"
-embedded-io = "0.6.1"
-embedded-io-async = "0.6.1"
 static_cell = "2.1"
 heapless = "0.8"
 cortex-m = { version = "0.7.7", features = ["inline-asm", "critical-section-single-core"] }
@@ -17,7 +14,10 @@ cortex-m-rt = "0.7.5"
 cortex-m-semihosting = "0.5"
 embedded-alloc = "0.6"
 embassy-executor = { version = "0.6.3", features = ["arch-cortex-m", "executor-thread", "integrated-timers"] }
+embedded-hal-async = "1.0.0"
 embassy-futures = "0.1.1"
+embedded-io = "0.6.1"
+embedded-io-async = "0.6.1"
 embassy-stm32 = { version = "0.1.0", features = ["memory-x", "stm32h723zg", "time-driver-any", "exti", "unstable-pac"] }
 embassy-sync = "0.6.1"
 embassy-time = { version = "0.3.2", features = ["tick-hz-32_768"] }

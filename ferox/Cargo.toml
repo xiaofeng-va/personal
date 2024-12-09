@@ -4,12 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+bitflags = { version = "2.4.2", features = ["serde"] }
+defmt = { version = "0.3", optional = true }
 embedded-hal-async = "1.0.0"
 embedded-io = "0.6.1"
 embedded-io-async = "0.6.1"
-static_cell = "2.1"
 heapless = "0.8"
-defmt = { version = "0.3", optional = true }
+itertools = { version = "0.13", default-features = false}
+static_cell = "2.1"
+serde = { version = "1.0", default-features = false }
+serde-json-core = { version = "0.6", default-features = false }
 
 [features]
 defmt = [ "dep:defmt" ]
