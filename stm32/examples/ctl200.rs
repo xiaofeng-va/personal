@@ -10,9 +10,8 @@ use embassy_stm32::{
     usart::{Config, Uart, UartRx, UartTx},
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
-use static_cell::StaticCell;
 use embassy_time::Timer;
-use ferox::{error, info, unwrap};
+use ferox::{info, unwrap};
 use heapless::Vec;
 use panic_probe as _;
 
@@ -24,33 +23,26 @@ const CRLF: &[u8] = b"\r\n";
 const VERSION_CMD: &[u8] = b"version\r\n";
 const PROMPT: &[u8] = b">>";
 
-static RX_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
 static CHAR_CHANNEL: Channel<ThreadModeRawMutex, u8, 32> = Channel::new();
 
 #[embassy_executor::task]
-async fn uart_reader(uart: UartRx<'static, UART7, DMA1_CH1>) {
+async fn uart_reader(mut uart: UartRx<'static, UART7, DMA1_CH1>) {
     info!("uart_reader started");
-
-    let buffer = RX_BUFFER.init([0; 256]);
-    let mut uart = uart.into_ring_buffered(buffer);
-    let mut temp_buf = [0u8; 32];
-
     loop {
-        match uart.read(&mut temp_buf).await {
-            Ok(count) => {
-                info!("uart_reader(): Read {} bytes", count);
-                for &b in &temp_buf[..count] {
-                    CHAR_CHANNEL.send(b).await;
-                }
-            }
-            Err(e) => match e {
-                usart::Error::Framing => error!("Framing error"),
-                usart::Error::Noise => error!("Noise error"),
-                usart::Error::Overrun => error!("Overrun error"),
-                usart::Error::Parity => error!("Parity error"),
-                _ => error!("Unknown UART error"),
-            },
+        let mut buffer: Vec<u8, 32> = Vec::new();
+        while let Ok(x) = uart.nb_read() {
+            buffer.push(x).unwrap();
+            // Adding a short delay to ensure nb_read() can read the last character,
+            // otherwise it might return before the character arrives, causing it to be missed.
+            Timer::after_micros(1).await;
         }
+        if buffer.is_empty() {
+            info!("uart_reader(): Read buffer: {:x}", buffer.as_slice());
+            for &b in buffer.iter() {
+                CHAR_CHANNEL.send(b).await;
+            }
+        }
+        Timer::after_millis(100).await;
     }
 }
 
@@ -58,7 +50,7 @@ async fn uart_reader(uart: UartRx<'static, UART7, DMA1_CH1>) {
 async fn char_processor(mut uart: UartTx<'static, UART7, DMA1_CH0>) {
     let mut buffer: Vec<u8, 32> = Vec::new();
     info!("char_processor started");
-
+    // Initial loop to send CRLF until PROMPT is received
     async fn wait_for_prompt(buffer: &mut Vec<u8, 32>) {
         buffer.clear();
         loop {
@@ -76,21 +68,18 @@ async fn char_processor(mut uart: UartTx<'static, UART7, DMA1_CH0>) {
         }
     }
 
-    uart.write(CRLF).await.unwrap();
+    unwrap!(uart.blocking_write(CRLF));
     info!("Sent CRLF");
     Timer::after_millis(1000).await;
-
     wait_for_prompt(&mut buffer).await;
     info!(
         "Buffer content after wait_for_prompt: {:x}",
         buffer.as_slice()
     );
-
-    uart.write(VERSION_CMD).await.unwrap();
+    unwrap!(uart.blocking_write(VERSION_CMD));
     info!("Sent 'version' command after initial loop");
     wait_for_prompt(&mut buffer).await;
     info!("PASS");
-
     loop {
         Timer::after_millis(1000).await;
     }
@@ -104,6 +93,7 @@ async fn main(spawner: Spawner) -> ! {
     let config = Config::default();
     let uart = Uart::new(p.UART7, p.PF6, p.PF7, Irqs, p.DMA1_CH0, p.DMA1_CH1, config).unwrap();
 
+    // Split UART for different tasks
     let (tx, rx) = uart.split();
 
     unwrap!(spawner.spawn(uart_reader(rx)));

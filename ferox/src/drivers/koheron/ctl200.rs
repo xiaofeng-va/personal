@@ -1,4 +1,4 @@
-use core::{default, fmt::Display, str::FromStr};
+use core::{fmt::Display, str::FromStr};
 
 use embedded_io_async::{Read, Write};
 use heapless::String;
@@ -7,7 +7,6 @@ use crate::{debug, info};
 
 const MAX_STRING_SIZE: usize = 64;
 pub const FIRMWARE_VERSION: &str = "V0.17";
-
 
 /// A fixed-size string backed by `heapless::String<N>`.
 /// This type provides a `FromStr` implementation and a displayable error type.
@@ -60,8 +59,6 @@ where
 }
 
 const CRLF: &[u8] = b"\r\n";
-const VERSION_CMD: &[u8] = b"version\r\n";
-const PROMPT: &[u8] = b">>";
 const CRLF_PROMPT: &[u8] = b"\r\n>>";
 
 impl<U> Ctl200<U>
@@ -75,35 +72,29 @@ where
     /// Returns the firmware version.
     pub async fn version(&mut self) -> Result<FixedSizeString> {
         let resp = self.get::<FixedSizeString>("version").await?;
-        // info!("version: {:?}", resp.as_str());
+        debug!("version: {:?}", resp.as_str());
         Ok(resp)
     }
 
     async fn query(&mut self, tx: &str) -> Result<FixedSizeString> {
-        info!("Sending command: '{}'", tx);
-        self._uart
-            .write_all(tx.as_bytes())
-            .await
-            .map_err(|_| {
-                info!("Failed to write command");
-                Error::WriteError
-            })?;
-        self._uart
-            .write_all(CRLF)
-            .await
-            .map_err(|_| {
-                info!("Failed to write CRLF");
-                Error::WriteError
-            })?;
+        debug!("Sending command: '{}'", tx);
+        self._uart.write_all(tx.as_bytes()).await.map_err(|_| {
+            debug!("Failed to write command");
+            Error::WriteError
+        })?;
+        self._uart.write_all(CRLF).await.map_err(|_| {
+            debug!("Failed to write CRLF");
+            Error::WriteError
+        })?;
         self._uart.flush().await.map_err(|_| {
-            info!("Failed to flush UART");
+            debug!("Failed to flush UART");
             Error::FlushError
         })?;
 
-        info!("Waiting for echo...");
+        debug!("Waiting for echo...");
         let echo = self.wait_for_expected_str(CRLF).await?;
         let response = self.wait_for_expected_str(CRLF_PROMPT).await?;
-        info!("Received echo: '{}' and response: '{}'", echo, response);
+        debug!("Received echo: '{}' and response: '{}'", echo, response);
 
         if echo.as_str() != tx {
             info!("Echo mismatch: expected {}, got {}", tx, echo.as_str());
@@ -138,23 +129,20 @@ where
         F: FromStr,
         F::Err: Display,
     {
-        let rx = self
-            .query(param)
-            .await?
-            .parse::<F>()
-            .map_err(|e| {
-                // TODO(xguo): fix this.
-                // info!("Failed to parse response: {:?}", Debug2Format(&e));
-                Error::InvalidResponse
-            })?;
+        let rx = self.query(param).await?.parse::<F>().map_err(|_| {
+            // TODO(xguo): fix this.
+            // info!("Failed to parse response: {:?}", Debug2Format(&e));
+            Error::InvalidResponse
+        })?;
         Ok(rx)
     }
 
+    #[allow(dead_code)]
     async fn set(&mut self, _param: &[u8], _value: Value) -> Result<()> {
         use core::fmt::Write;
         let mut s: String<MAX_STRING_SIZE> = String::new();
         write!(&mut s, "{:?} {:?}", _param, _value).unwrap();
-        let rx = self.query(&s).await?;
+        let _ = self.query(&s).await?;
         Ok(())
     }
 }
