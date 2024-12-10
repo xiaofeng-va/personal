@@ -99,8 +99,9 @@ where
 }
 
 const CRLF: &[u8] = b"\r\n";
-const PROMPT : &[u8] = b">>";
+const PROMPT: &[u8] = b">>";
 const CRLF_PROMPT: &[u8] = b"\r\n>>";
+const UNKNOWN_COMMAND: &[u8] = b"Unknown command";
 
 impl<U> Ctl200<U>
 where
@@ -116,7 +117,7 @@ where
     /// Sets the enabled state of the laser.
     pub async fn set_laser_en(&mut self, en: bool) -> Result<()> {
         debug!("set lason: {}", en);
-        self.set("lason", Value::Bool(en)).await
+        self.set("lason", Value::Bool(Ctl200Bool(en))).await
     }
 
     /// Returns the laser current in mA.
@@ -180,7 +181,7 @@ where
     /// Sets the enabled state of the laser interlock.
     pub async fn set_interlock_en(&mut self, en: bool) -> Result<()> {
         debug!("set lckon: {}", en);
-        self.set("lckon", Value::Bool(en)).await
+        self.set("lckon", Value::Bool(Ctl200Bool(en))).await
     }
 
     /// Returns the laser current modulation gain in mA/V.
@@ -208,7 +209,7 @@ where
     /// Sets the enabled state of the TEC.
     pub async fn set_tec_en(&mut self, en: bool) -> Result<()> {
         debug!("set tecon: {}", en);
-        self.set("tecon", Value::Bool(en)).await
+        self.set("tecon", Value::Bool(Ctl200Bool(en))).await
     }
 
     /// Returns the enabled state of the temperature protection.
@@ -221,7 +222,7 @@ where
     /// Sets the enabled state of the temperature protection.
     pub async fn set_temp_prot_en(&mut self, en: bool) -> Result<()> {
         debug!("set tprot: {}", en);
-        self.set("tprot", Value::Bool(en)).await
+        self.set("tprot", Value::Bool(Ctl200Bool(en))).await
     }
 
     /// Returns the thermistor setpoint in Ohms.
@@ -547,38 +548,58 @@ where
         F: FromStr,
         F::Err: Display,
     {
-        let rx = self.query(param).await?.parse::<F>().map_err(|e| {
+        let res: FixedSizeString = self.query(param).await?;
+        debug!("Getting value as type: {}", core::any::type_name::<F>());
+        let rx = res.parse::<F>().map_err(|e| {
             Error::InvalidResponse(format_fixed!(
-                "Could not parse Ctl200 response to `get: {param}`.\nError: {e}"
+                "Could not parse Ctl200 response to `get: {param}` and returns {res}.\nError: {e}"
             ))
         })?;
         Ok(rx)
     }
 
-    #[allow(dead_code)]
     async fn set(&mut self, _param: &str, _value: Value) -> Result<()> {
         use core::fmt::Write;
         let mut s: String<MAX_STRING_SIZE> = String::new();
-        write!(&mut s, "{:?} {:?}", _param, _value).unwrap();
+        write!(&mut s, "{} {}", _param, _value).unwrap();
+        debug!("Sending command: '{}'", s.as_str());
         let _ = self.query(&s).await?;
         Ok(())
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Ctl200Bool(pub bool);
+
+impl FromStr for Ctl200Bool {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        debug!("Ctl200Bool :: Parsing value: '{}'", s);
+        match s {
+            "0" => Ok(Ctl200Bool(false)),
+            "1" => Ok(Ctl200Bool(true)),
+            _ => Err(Error::InvalidResponse(format_fixed!("Expected 0 or 1"))),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Value {
-    Bool(bool),
+    Bool(Ctl200Bool),
     Int(i32),
     Float(f32),
     String(FixedSizeString),
     None,
 }
 
+// TODO(xguo): Remove FromStr.
 impl FromStr for Value {
     type Err = Error;
 
     fn from_str(s: &str) -> core::result::Result<Self, Self::Err> {
-        if let Ok(b) = s.parse::<bool>() {
+        debug!("Value :: Parsing value: '{}'", s);
+        if let Ok(b) = s.parse::<Ctl200Bool>() {
             Ok(Value::Bool(b))
         } else if let Ok(i) = s.parse::<i32>() {
             Ok(Value::Int(i))
@@ -593,7 +614,7 @@ impl FromStr for Value {
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::Bool(b) => write!(f, "{}", b),
+            Value::Bool(b) => write!(f, "{}", if b.0 { "1" } else { "0" }),
             Value::Int(i) => write!(f, "{}", i),
             Value::Float(fl) => write!(f, "{}", fl),
             Value::String(s) => write!(f, "{}", s.as_str()),
@@ -888,29 +909,29 @@ pub type Result<T> = core::result::Result<T, Error>;
 mod tests {
     extern crate std;
     use core::fmt::Write as fmtWrite;
-    use std::{sync::Arc, vec::Vec};
-    use std::collections::HashMap;
+    use std::{collections::HashMap, println, string::String as StdString, sync::Arc, vec::Vec};
 
     use embedded_io_async::{Read, Write};
     use futures::lock::Mutex;
-    use std::string::String as StdString;
-    use std::println;
+    use itertools::Itertools;
+    use log::error;
 
     use super::*;
 
     lazy_static::lazy_static! {
-        static ref COMMAND_MAP: HashMap<&'static str, &'static str> = {
+        static ref COMMAND_MAP: Mutex<HashMap<&'static str, StdString>> = {
             let mut m = HashMap::new();
-            m.insert("version", "V0.17");
-            m.insert("lason", "true");
+            m.insert("version", StdString::from("V0.17"));
+            m.insert("lason", StdString::from("0"));
             // Add more commands as needed
-            m
+            Mutex::new(m)
         };
     }
 
     #[derive(Debug)]
     enum MockError {
-        }
+        WriteError
+    }
 
     impl embedded_io::Error for MockError {
         fn kind(&self) -> embedded_io::ErrorKind {
@@ -934,7 +955,7 @@ mod tests {
                 write_data: Arc::new(Mutex::new(Vec::new())),
             }
         }
-        
+
         fn append_read_data(&self, data: &[u8]) {
             let mut read_data = futures::executor::block_on(self.read_data.lock());
             println!("Appending read data: {:?}", data);
@@ -946,7 +967,11 @@ mod tests {
         async fn read(&mut self, buf: &mut [u8]) -> core::result::Result<usize, Self::Error> {
             let mut data = self.read_data.lock().await;
             let len = data.len().min(buf.len());
-            println!("Reading {} bytes from mock stream: '{:?}'", len, &data[..len]);
+            println!(
+                "Reading {} bytes from mock stream: '{:?}'",
+                len,
+                &data[..len]
+            );
             buf[..len].copy_from_slice(&data[..len]);
             data.drain(..len);
             Ok(len)
@@ -962,23 +987,37 @@ mod tests {
             if data.ends_with(CRLF) {
                 // Extract the command from the data, excluding the CRLF
                 let command = StdString::from_utf8(data[..data.len() - 2].to_vec()).unwrap();
-                println!("Received command: {}", command);
+                debug!("Received command: {}", command);
 
                 // Append the command and CRLF to the read data
                 self.append_read_data(command.as_bytes());
                 self.append_read_data(CRLF);
                 data.clear();
 
-                // Check if the command has a predefined response
-                if let Some(response) = COMMAND_MAP.get(command.as_ref() as &str) {
-                    println!("Found response for command: {}", response);
-                    self.append_read_data(response.as_bytes());
-                    self.append_read_data(CRLF);
-                } else {
-                    println!("No predefined response for command: {}", command);
+                let cmds: Vec<StdString> = command.split_whitespace().map(StdString::from).collect();
+                match cmds.len() {
+                    1 => {
+                        // GET command
+                        if let Some(response) = COMMAND_MAP.lock().await.get(cmds[0].as_str()) {
+                            debug!("Found response for command: {}", response);
+                            self.append_read_data(response.as_bytes());
+                        } else {
+                            debug!("No predefined response for command: {}", cmds[0]);
+                            self.append_read_data(UNKNOWN_COMMAND);
+                        }
+                    }
+                    2 => {
+                        // SET command
+                        if let Some(response) = COMMAND_MAP.lock().await.get_mut(cmds[0].as_str()) {
+                            *response = StdString::from(cmds[1].as_str());
+                            self.append_read_data(cmds[1].as_bytes());
+                        } else {
+                            self.append_read_data(UNKNOWN_COMMAND);
+                        }
+                    }
+                    _ => return Err(MockError::WriteError),
                 }
-                // Append the prompt to the data
-                self.append_read_data(PROMPT);
+                self.append_read_data(CRLF_PROMPT);
             }
 
             Ok(buf.len())
@@ -1006,12 +1045,14 @@ mod tests {
 
         env_logger::builder().is_test(true).try_init().unwrap();
         log::info!("xfguo: Setting lason to true");
-        println!(">>>Getting lason as true");
-        assert_eq!(ctl200.get::<bool>("lason").await.unwrap(), true);
-        println!(">>>Setting lason to false");
-        ctl200.set("lason", Value::Bool(false)).await.unwrap();
         println!(">>>Getting lason as false");
-        assert_eq!(ctl200.get::<bool>("lason").await.unwrap(), false);
+        let t = ctl200.get::<Ctl200Bool>("lason").await.unwrap().0;
+        debug!("test_ctl200_set(): lason: {}", t);
+        assert_eq!(t, false);
+        println!(">>>Setting lason to true");
+        ctl200.set("lason", Value::Bool(Ctl200Bool(true))).await.unwrap();
+        println!(">>>Getting lason as true");
+        assert_eq!(ctl200.get::<Ctl200Bool>("lason").await.unwrap().0, true);
     }
 
     #[test]
@@ -1104,11 +1145,11 @@ mod tests {
 
     #[test]
     fn test_value_from_str_bool() {
-        let value = Value::from_str("true").unwrap();
-        assert_eq!(value, Value::Bool(true));
+        let value = Value::from_str("1").unwrap();
+        assert_eq!(value, Value::Bool(Ctl200Bool(true)));
 
-        let value = Value::from_str("false").unwrap();
-        assert_eq!(value, Value::Bool(false));
+        let value = Value::from_str("0").unwrap();
+        assert_eq!(value, Value::Bool(Ctl200Bool(false)));
     }
 
     #[test]
@@ -1140,8 +1181,8 @@ mod tests {
 
     #[test]
     fn test_value_display() {
-        let value = Value::Bool(true);
-        assert_eq!(format_fixed!("{}", value).as_str(), "true");
+        let value = Value::Bool(Ctl200Bool(true));
+        assert_eq!(format_fixed!("{}", value).as_str(), "1");
 
         let value = Value::Int(42);
         assert_eq!(format_fixed!("{}", value).as_str(), "42");

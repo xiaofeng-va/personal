@@ -26,4 +26,4 @@ env_logger = "0.11"
 [features]
 defmt = [ "dep:defmt" ]
 log = [ "dep:log" ]
-default = [ "defmt" ]
+default = [ "log" ]

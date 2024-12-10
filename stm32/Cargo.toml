@@ -6,7 +6,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ferox = { version = "*", path = "../ferox", default-features = false, features = ["defmt"] }
+ferox = { version = "0.1", path = "../ferox", default-features = false, features = ["defmt"] }
 defmt = { version = "0.3.10" }
 
 [dev-dependencies]
@@ -29,7 +29,8 @@ defmt-rtt = { version = "0.4.1" }
 panic-probe = { version = "0.3.2", features = ["print-defmt"] }
 
 [features]
-default = ["debug"]
+defmt = []
+default = ["debug", "defmt"]
 debug = [
     "embassy-executor/defmt",
     "embassy-sync/defmt",

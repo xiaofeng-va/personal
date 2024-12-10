@@ -75,7 +75,15 @@ type CTL200 =
     Ctl200<UartWrapper<'static, peripherals::UART7, peripherals::DMA1_CH0, peripherals::DMA1_CH1>>;
 async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
     if ctl200.version().await?.as_str() != FIRMWARE_VERSION {
-        return Err(Error::InvalidFirmwareVersion);
+        return Err(Error::ReadError);
+    }
+    let lason = ctl200.laser_en().await?;
+    info!("Laser is {}", if lason { "ON" } else { "OFF" });
+    ctl200.set_laser_en(!lason).await?;
+    let lason2 = ctl200.laser_en().await?;
+    info!("Laser is {}", if lason2 { "ON" } else { "OFF" });
+    if lason2 == lason {
+        return Err(Error::WriteError);
     }
     Ok(())
 }
