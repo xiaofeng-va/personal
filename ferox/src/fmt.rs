@@ -118,8 +118,8 @@ macro_rules! trace {
         {
             #[cfg(feature = "defmt")]
             ::defmt::trace!($s $(, $x)*);
-            #[cfg(feature="defmt")]
-            let _ = ($( & $x ),*);
+            #[cfg(not(feature="defmt"))]
+            log::trace!($s $(, $x)*);
         }
     };
 }
@@ -131,7 +131,7 @@ macro_rules! debug {
             #[cfg(feature = "defmt")]
             ::defmt::debug!($s $(, $x)*);
             #[cfg(not(feature="defmt"))]
-            let _ = ($( & $x ),*);
+            log::debug!($s $(, $x)*);
         }
     };
 }
@@ -139,11 +139,14 @@ macro_rules! debug {
 #[macro_export]
 macro_rules! info {
     ($s:literal $(, $x:expr)* $(,)?) => {
+        #[cfg(feature = "defmt")]
         {
-            #[cfg(feature = "defmt")]
             ::defmt::info!($s $(, $x)*);
-            #[cfg(not(feature="defmt"))]
-            let _ = ($( & $x ),*);
+        }
+        #[cfg(not(feature="defmt"))]
+        {
+            log::info!($s $(, $x)*);
+            // let _ = ($( & $x ),*);
         }
     };
 }
@@ -155,7 +158,7 @@ macro_rules! _warn {
             #[cfg(feature = "defmt")]
             ::defmt::warn!($s $(, $x)*);
             #[cfg(not(feature="defmt"))]
-            let _ = ($( & $x ),*);
+            log::warn!($s $(, $x)*);
         }
     };
 }
@@ -167,7 +170,7 @@ macro_rules! error {
             #[cfg(feature = "defmt")]
             ::defmt::error!($s $(, $x)*);
             #[cfg(not(feature="defmt"))]
-            let _ = ($( & $x ),*);
+            log::error!($s $(, $x)*);
         }
     };
 }

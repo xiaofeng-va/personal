@@ -31,6 +31,12 @@ const MAX_STRING_SIZE: usize = 256;
 #[derive(Debug, PartialEq)]
 pub struct FixedSizeString(String<MAX_STRING_SIZE>);
 
+impl Display for FixedSizeString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 #[cfg(feature = "defmt")]
 impl defmt::Format for FixedSizeString {
     fn format(&self, fmt: defmt::Formatter) {
@@ -93,6 +99,7 @@ where
 }
 
 const CRLF: &[u8] = b"\r\n";
+const PROMPT : &[u8] = b">>";
 const CRLF_PROMPT: &[u8] = b"\r\n>>";
 
 impl<U> Ctl200<U>
@@ -503,8 +510,9 @@ where
 
         debug!("Waiting for echo...");
         let echo = self.wait_for_expected_str(CRLF).await?;
+        debug!("Received echo: '{}', waiting for response...", echo);
         let response = self.wait_for_expected_str(CRLF_PROMPT).await?;
-        debug!("Received echo: '{}' and response: '{}'", echo, response);
+        debug!("Received response: '{}'", response);
 
         if echo.as_str() != tx {
             info!("Echo mismatch: expected {}, got {}", tx, echo.as_str());
@@ -881,11 +889,24 @@ mod tests {
     extern crate std;
     use core::fmt::Write as fmtWrite;
     use std::{sync::Arc, vec::Vec};
+    use std::collections::HashMap;
 
     use embedded_io_async::{Read, Write};
     use futures::lock::Mutex;
+    use std::string::String as StdString;
+    use std::println;
 
     use super::*;
+
+    lazy_static::lazy_static! {
+        static ref COMMAND_MAP: HashMap<&'static str, &'static str> = {
+            let mut m = HashMap::new();
+            m.insert("version", "V0.17");
+            m.insert("lason", "true");
+            // Add more commands as needed
+            m
+        };
+    }
 
     #[derive(Debug)]
     enum MockError {
@@ -903,7 +924,6 @@ mod tests {
     }
 
     impl embedded_io::ErrorType for MockStream {
-        // TODO(xguo): Make this a real error type.
         type Error = MockError;
     }
 
@@ -914,22 +934,19 @@ mod tests {
                 write_data: Arc::new(Mutex::new(Vec::new())),
             }
         }
-
-        // TODO(xguo): Remove the code below.
-        // fn get_written_data(&self) -> Vec<u8> {
-        //     futures::executor::block_on(self.write_data.lock()).clone()
-        // }
-
-        // fn append_read_data(&self, data: &[u8]) {
-        //     let mut read_data = futures::executor::block_on(self.read_data.lock());
-        //     read_data.extend_from_slice(data);
-        // }
+        
+        fn append_read_data(&self, data: &[u8]) {
+            let mut read_data = futures::executor::block_on(self.read_data.lock());
+            println!("Appending read data: {:?}", data);
+            read_data.extend_from_slice(data);
+        }
     }
 
     impl Read for MockStream {
         async fn read(&mut self, buf: &mut [u8]) -> core::result::Result<usize, Self::Error> {
             let mut data = self.read_data.lock().await;
             let len = data.len().min(buf.len());
+            println!("Reading {} bytes from mock stream: '{:?}'", len, &data[..len]);
             buf[..len].copy_from_slice(&data[..len]);
             data.drain(..len);
             Ok(len)
@@ -940,6 +957,30 @@ mod tests {
         async fn write(&mut self, buf: &[u8]) -> core::result::Result<usize, Self::Error> {
             let mut data = self.write_data.lock().await;
             data.extend_from_slice(buf);
+
+            // Check if the data ends with CRLF (Carriage Return and Line Feed)
+            if data.ends_with(CRLF) {
+                // Extract the command from the data, excluding the CRLF
+                let command = StdString::from_utf8(data[..data.len() - 2].to_vec()).unwrap();
+                println!("Received command: {}", command);
+
+                // Append the command and CRLF to the read data
+                self.append_read_data(command.as_bytes());
+                self.append_read_data(CRLF);
+                data.clear();
+
+                // Check if the command has a predefined response
+                if let Some(response) = COMMAND_MAP.get(command.as_ref() as &str) {
+                    println!("Found response for command: {}", response);
+                    self.append_read_data(response.as_bytes());
+                    self.append_read_data(CRLF);
+                } else {
+                    println!("No predefined response for command: {}", command);
+                }
+                // Append the prompt to the data
+                self.append_read_data(PROMPT);
+            }
+
             Ok(buf.len())
         }
 
@@ -956,17 +997,22 @@ mod tests {
         assert_eq!(result.as_str(), "V0.17");
     }
 
-    // #[tokio::test]
-    // async fn test_ctl200_set() {
-    //     let read_data = b"OK\r\n".to_vec();
-    //     let mock_stream = MockStream::new();
+    #[tokio::test]
+    async fn test_ctl200_set() {
+        let read_data = b"OK\r\n".to_vec();
+        let mock_stream: MockStream = MockStream::new();
 
-    //     let mut ctl200 = Ctl200::new(mock_stream);
-    //     ctl200.set("param", Value::Int(42)).await.unwrap();
+        let mut ctl200 = Ctl200::new(mock_stream);
 
-    //     let written_data = mock_stream.get_written_data();
-    //     assert_eq!(written_data, b"param 42\r\n");
-    // }
+        env_logger::builder().is_test(true).try_init().unwrap();
+        log::info!("xfguo: Setting lason to true");
+        println!(">>>Getting lason as true");
+        assert_eq!(ctl200.get::<bool>("lason").await.unwrap(), true);
+        println!(">>>Setting lason to false");
+        ctl200.set("lason", Value::Bool(false)).await.unwrap();
+        println!(">>>Getting lason as false");
+        assert_eq!(ctl200.get::<bool>("lason").await.unwrap(), false);
+    }
 
     #[test]
     fn test_fixed_size_string_from_str() {
