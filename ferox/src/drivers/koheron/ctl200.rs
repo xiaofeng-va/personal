@@ -92,8 +92,8 @@ where
         })?;
 
         debug!("Waiting for echo...");
-        let echo = self.wait_for_expected_str(CRLF).await?;
-        let response = self.wait_for_expected_str(CRLF_PROMPT).await?;
+        let echo = self.read_until(CRLF).await?;
+        let response = self.read_until(CRLF_PROMPT).await?;
         debug!("Received echo: '{}' and response: '{}'", echo, response);
 
         if echo.as_str() != tx {
@@ -104,7 +104,7 @@ where
         Ok(response)
     }
 
-    async fn wait_for_expected_str(&mut self, expected_str: &[u8]) -> Result<FixedSizeString> {
+    async fn read_until(&mut self, expected_str: &[u8]) -> Result<FixedSizeString> {
         let mut buffer = String::new();
         let mut byte = [0u8; 1];
 
