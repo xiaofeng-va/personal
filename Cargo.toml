@@ -3,6 +3,9 @@
 members = [
     "ferox",
 ]
+exclude = [
+    "stm32",
+]
 resolver = "2"
 
 [profile.dev]
