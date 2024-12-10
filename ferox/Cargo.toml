@@ -18,6 +18,7 @@ serde-json-core = { version = "0.6", default-features = false }
 [dev-dependencies]
 nb = "1.0"
 tokio = { version = "1.0", features = ["full"] }
+futures = { version = "0.3"}
 
 [features]
 defmt = [ "dep:defmt" ]

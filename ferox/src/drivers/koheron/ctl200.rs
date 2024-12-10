@@ -879,74 +879,94 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use super::*;
     use core::fmt::Write as fmtWrite;
-    
+    use std::{sync::Arc, vec::Vec};
+
     use embedded_io_async::{Read, Write};
+    use futures::lock::Mutex;
+
+    use super::*;
 
     #[derive(Debug)]
     enum MockError {
-        ReadError,
-        WriteError,
-    }
+        }
 
     impl embedded_io::Error for MockError {
         fn kind(&self) -> embedded_io::ErrorKind {
-            todo!()
+            embedded_io::ErrorKind::Other
         }
     }
 
     struct MockStream {
+        read_data: Arc<Mutex<Vec<u8>>>,
+        write_data: Arc<Mutex<Vec<u8>>>,
     }
-
 
     impl embedded_io::ErrorType for MockStream {
         // TODO(xguo): Make this a real error type.
         type Error = MockError;
     }
 
-    impl Read for MockStream {
-        async fn read(&mut self, buf: &mut [u8]) -> core::result::Result<usize, Self::Error> {
-            todo!()
+    impl MockStream {
+        fn new() -> Self {
+            MockStream {
+                read_data: Arc::new(Mutex::new(Vec::new())),
+                write_data: Arc::new(Mutex::new(Vec::new())),
+            }
         }
 
-        async fn read_exact(&mut self, mut buf: &mut [u8]) -> core::result::Result<(), embedded_io::ReadExactError<Self::Error>> {
-            while !buf.is_empty() {
-                match self.read(buf).await {
-                    Ok(0) => break,
-                    Ok(n) => buf = &mut buf[n..],
-                    Err(e) => return Err(embedded_io::ReadExactError::Other(e)),
-                }
-            }
-            if buf.is_empty() {
-                Ok(())
-            } else {
-                Err(embedded_io::ReadExactError::UnexpectedEof)
-            }
+        // TODO(xguo): Remove the code below.
+        // fn get_written_data(&self) -> Vec<u8> {
+        //     futures::executor::block_on(self.write_data.lock()).clone()
+        // }
+
+        // fn append_read_data(&self, data: &[u8]) {
+        //     let mut read_data = futures::executor::block_on(self.read_data.lock());
+        //     read_data.extend_from_slice(data);
+        // }
+    }
+
+    impl Read for MockStream {
+        async fn read(&mut self, buf: &mut [u8]) -> core::result::Result<usize, Self::Error> {
+            let mut data = self.read_data.lock().await;
+            let len = data.len().min(buf.len());
+            buf[..len].copy_from_slice(&data[..len]);
+            data.drain(..len);
+            Ok(len)
         }
     }
-    
+
     impl Write for MockStream {
         async fn write(&mut self, buf: &[u8]) -> core::result::Result<usize, Self::Error> {
-            todo!()
+            let mut data = self.write_data.lock().await;
+            data.extend_from_slice(buf);
+            Ok(buf.len())
         }
 
         async fn flush(&mut self) -> core::result::Result<(), Self::Error> {
             Ok(())
         }
-
-        async fn write_all(&mut self, buf: &[u8]) -> core::result::Result<(), Self::Error> {
-            let mut buf = buf;
-            while !buf.is_empty() {
-                match self.write(buf).await {
-                    Ok(0) => core::panic!("write() returned Ok(0)"),
-                    Ok(n) => buf = &buf[n..],
-                    Err(e) => return Err(e),
-                }
-            }
-            Ok(())
-        }
     }
+
+    #[tokio::test]
+    async fn test_ctl200_get() {
+        let mock_stream = MockStream::new();
+        let mut ctl200 = Ctl200::new(mock_stream);
+        let result: FixedSizeString = ctl200.get("version").await.unwrap();
+        assert_eq!(result.as_str(), "V0.17");
+    }
+
+    // #[tokio::test]
+    // async fn test_ctl200_set() {
+    //     let read_data = b"OK\r\n".to_vec();
+    //     let mock_stream = MockStream::new();
+
+    //     let mut ctl200 = Ctl200::new(mock_stream);
+    //     ctl200.set("param", Value::Int(42)).await.unwrap();
+
+    //     let written_data = mock_stream.get_written_data();
+    //     assert_eq!(written_data, b"param 42\r\n");
+    // }
 
     #[test]
     fn test_fixed_size_string_from_str() {
