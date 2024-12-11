@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::{debug, info};
 
 // TODO(xguo): Figure out the correct value for MAX_STRING_SIZE.
-const MAX_STRING_SIZE: usize = 256;
+const MAX_STRING_SIZE: usize = 128;
 
 /// The `FixedSizeString` struct is designed to hold a string with a maximum length defined by `MAX_STRING_SIZE`.
 /// It is useful in embedded systems where memory constraints are critical and dynamic memory allocation is not desirable.

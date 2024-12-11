@@ -27,6 +27,7 @@ embassy-time = { version = "0.3.2", features = ["tick-hz-32_768"] }
 panic-halt = "1.0.0"
 defmt-rtt = { version = "0.4.1" }
 panic-probe = { version = "0.3.2", features = ["print-defmt"] }
+num-traits = { version = "0.2", default-features = false }
 
 [features]
 defmt = []
