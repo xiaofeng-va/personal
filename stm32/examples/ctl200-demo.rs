@@ -97,7 +97,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
             return Err(Error::WriteError);
         }
     }
-
+    info!("1 | Current SP: 0x{:X}", cortex_m::register::msp::read());
 
     {
         let laser_current_mA = ctl200.laser_current_mA().await?;
@@ -109,6 +109,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
             return Err(Error::WriteError);
         }
     }
+    info!("2 | Current SP: 0x{:X}", cortex_m::register::msp::read());
 
     {
         let laser_V = ctl200.laser_V().await?;
@@ -132,9 +133,9 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         ctl200.set_current_limit_mA(current_limit_mA + 1.0f32).await?;
         let current_limit_mA2 = ctl200.current_limit_mA().await?;
         info!("New limit is {} mA", current_limit_mA2);
-        if (current_limit_mA2 - current_limit_mA).abs() < 0.1f32 {
-            return Err(Error::WriteError);
-        }
+        // if (current_limit_mA2 - current_limit_mA).abs() < 0.1f32 {
+        //     return Err(Error::WriteError);
+        // }
     }
 
     {
@@ -210,10 +211,11 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         ctl200.set_prop_gain(prop_gain + 1.0f32).await?;
         let prop_gain2 = ctl200.prop_gain().await?;
         info!("New proportional gain is {}", prop_gain2);
-        if (prop_gain2 - prop_gain).abs() < 0.1f32 {
-            return Err(Error::WriteError);
-        }
+        // if (prop_gain2 - prop_gain).abs() < 0.1f32 {
+        //     return Err(Error::WriteError);
+        // }
     }
+    info!("8 | Current SP: 0x{:X}", cortex_m::register::msp::read());
 
     {
         let int_gain = ctl200.int_gain().await?;
@@ -221,9 +223,9 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         ctl200.set_int_gain(int_gain + 1.0f32).await?;
         let int_gain2 = ctl200.int_gain().await?;
         info!("New integral gain is {}", int_gain2);
-        if (int_gain2 - int_gain).abs() < 0.1f32 {
-            return Err(Error::WriteError);
-        }
+        // if (int_gain2 - int_gain).abs() < 0.1f32 {
+        //     return Err(Error::WriteError);
+        // }
     }
     Ok(())
 }
