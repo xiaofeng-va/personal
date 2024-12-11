@@ -3,7 +3,6 @@
 
 use core::default::Default;
 
-use cortex_m_semihosting::debug;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_stm32::{
@@ -24,18 +23,11 @@ use panic_halt as _;
 use static_cell::StaticCell;
 use num_traits::float::FloatCore;
 
-#[cortex_m_rt::exception]
-unsafe fn HardFault(frame: &cortex_m_rt::ExceptionFrame) -> ! {
-    loop {
-        // defmt::error!("HardFault at {:#?}", frame);
-        debug::exit(debug::EXIT_FAILURE);
-    }
-}
-
 bind_interrupts!(struct Irqs {
     UART7 => usart::InterruptHandler<peripherals::UART7>;
 });
 
+#[link_section = ".sram1"]
 static RX_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
 
 pub struct UartWrapper<'d, T: BasicInstance, TxDma = NoDma, RxDma = NoDma>
@@ -52,8 +44,11 @@ impl<'d, T: BasicInstance, TxDma: usart::TxDma<T>, RxDma: usart::RxDma<T>>
     pub fn new(uart: Uart<'d, T, TxDma, RxDma>) -> Self {
         let (tx, rx0) = uart.split();
 
+        info!("UartWrapper::new() 1");
         let buffer = RX_BUFFER.init([0; 256]);
+        info!("UartWrapper::new() 2");
         let rx = rx0.into_ring_buffered(buffer);
+        info!("UartWrapper::new() 3");
         Self { tx, rx }
     }
 }
@@ -240,11 +235,9 @@ async fn ctl200_task(
     match ctl200_process(ctl200).await {
         Ok(_) => {
             info!("CTL200 testing process PASS");
-            debug::exit(debug::EXIT_SUCCESS);
         }
         Err(e) => {
             error!("Failed in running the CTL200 testing process: {:?}", e);
-            debug::exit(debug::EXIT_FAILURE);
         }
     }
 
@@ -256,17 +249,21 @@ async fn ctl200_task(
 async fn main(spawner: Spawner) -> ! {
     let p = embassy_stm32::init(Default::default());
     info!("CTL200 Example Starting!");
-    use core::mem;
     
     let config = Config::default();
+    info!("main() 1");
     let uart = Uart::new(p.UART7, p.PF6, p.PF7, Irqs, p.DMA1_CH0, p.DMA1_CH1, config).unwrap();
+    info!("main() 2");
     let uart_wrapper = UartWrapper::new(uart);
+    info!("main() 3");
     let ctl200: Ctl200<
         UartWrapper<'_, peripherals::UART7, peripherals::DMA1_CH0, peripherals::DMA1_CH1>,
     > = Ctl200::new(uart_wrapper);
+    info!("main() 4");
     let _ = spawner.spawn(ctl200_task(ctl200)).unwrap();
 
     loop {
+        info!("Main loop...");
         Timer::after_millis(1000).await;
     }
 }
