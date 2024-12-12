@@ -1,33 +1,37 @@
 #![no_std]
 #![no_main]
 
-use core::default::Default;
+use core::{default::Default, str::FromStr};
 
-use cortex_m_semihosting::debug;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_stm32::{
     bind_interrupts,
     dma::NoDma,
-    peripherals, usart,
-    usart::{BasicInstance, Config, RingBufferedUartRx, Uart, UartTx},
+    peripherals, usart::{self, BasicInstance, BufferedUart, Config, RingBufferedUartRx, Uart, UartTx},
 };
 use embassy_time::Timer;
 use embedded_io::ErrorType;
 use embedded_io_async::{Read, Write};
 use ferox::{
-    drivers::koheron::ctl200::{Ctl200, Error},
-    error, info,
+    debug, drivers::koheron::ctl200::{Ctl200, Error, FixedSizeString}, error, info
 };
 use ferox_stm32::ctl200::FIRMWARE_VERSION;
+use grounded::uninit::GroundedArrayCell;
+use num_traits::float::FloatCore;
 use panic_halt as _;
-use static_cell::StaticCell;
+// use spdifrx::GlobalInterruptHandler;
 
 bind_interrupts!(struct Irqs {
-    UART7 => usart::InterruptHandler<peripherals::UART7>;
+    UART7 => usart::BufferedInterruptHandler<peripherals::UART7>;
 });
 
-static RX_BUFFER: StaticCell<[u8; 256]> = StaticCell::new();
+// bind_interrupts!(struct Irqs {
+//     SPDIF_RX => spdifrx::GlobalInterruptHandler<peripherals::SPDIFRX1>;
+// });
+
+#[link_section = ".sram1"]
+static mut SPDIFRX_BUFFER: GroundedArrayCell<u8, 256> = GroundedArrayCell::uninit();
 
 pub struct UartWrapper<'d, T: BasicInstance, TxDma = NoDma, RxDma = NoDma>
 where
@@ -43,8 +47,13 @@ impl<'d, T: BasicInstance, TxDma: usart::TxDma<T>, RxDma: usart::RxDma<T>>
     pub fn new(uart: Uart<'d, T, TxDma, RxDma>) -> Self {
         let (tx, rx0) = uart.split();
 
-        let buffer = RX_BUFFER.init([0; 256]);
-        let rx = rx0.into_ring_buffered(buffer);
+        let spdifrx_buffer: &mut [u8] = unsafe {
+            SPDIFRX_BUFFER.initialize_all_copied(0);
+            let (ptr, len) = SPDIFRX_BUFFER.get_ptr_len();
+            core::slice::from_raw_parts_mut(ptr, len)
+        };
+
+        let rx = rx0.into_ring_buffered(spdifrx_buffer);
         Self { tx, rx }
     }
 }
@@ -67,55 +76,326 @@ impl<'d, T: BasicInstance, TxDma: usart::TxDma<T>, RxDma: usart::RxDma<T>> Write
     for UartWrapper<'d, T, TxDma, RxDma>
 {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
-        self.tx.write(buf).await.map(|_| buf.len())
-    }
+        debug!("UartWrapper::write() Writing {} bytes: {:?}", buf.len(), buf);
+        match self.tx.write(buf).await {
+            Ok(_) => {
+                debug!("UartWrapper::write() done");
+                Ok(buf.len())
+            }
+            Err(e) => {
+                error!("DMA write error: {:?}", e);
+                Err(e)
+            }
+        }    }
 }
 
-type CTL200 =
-    Ctl200<UartWrapper<'static, peripherals::UART7, peripherals::DMA1_CH0, peripherals::DMA1_CH1>>;
+type CTL200 = Ctl200<BufferedUart<'static, peripherals::UART7>>;
 async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
     if ctl200.version().await?.as_str() != FIRMWARE_VERSION {
-        return Err(Error::InvalidFirmwareVersion);
+        return Err(Error::ReadError);
     }
+
+    {
+        let lason = ctl200.laser_en().await?;
+        info!("Laser is {}", if lason { "ON" } else { "OFF" });
+        ctl200.set_laser_en(!lason).await?;
+        let lason2 = ctl200.laser_en().await?;
+        info!("Laser is {}", if lason2 { "ON" } else { "OFF" });
+        let _ = ctl200.set_laser_en(lason).await; // reset
+        if lason2 == lason {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let laser_current_mA = ctl200.laser_current_mA().await?;
+        info!("Laser current is {} mA", laser_current_mA);
+        ctl200
+            .set_laser_current_mA(laser_current_mA + 1.0f32)
+            .await?;
+        let laser_current_mA2 = ctl200.laser_current_mA().await?;
+        info!("New laser current is {} mA", laser_current_mA2);
+        let _ = ctl200.set_laser_current_mA(laser_current_mA).await; // reset
+        if (laser_current_mA2 - laser_current_mA - 1f32).abs() > 0.1f32 {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let laser_delay_ms = ctl200.laser_delay_ms().await?;
+        info!("Laser delay is {} ms", laser_delay_ms);
+        ctl200.set_laser_delay_ms(laser_delay_ms + 1.0f32).await?;
+        let laser_delay_ms2 = ctl200.laser_delay_ms().await?;
+        info!("New laser delay is {} ms", laser_delay_ms2);
+        let _ = ctl200.set_laser_delay_ms(laser_delay_ms).await; // reset
+        if (laser_delay_ms2 - laser_delay_ms - 1f32).abs() > 0.1f32 {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let current_limit_mA = ctl200.current_limit_mA().await?;
+        info!("Current limit is {} mA", current_limit_mA);
+        ctl200
+            .set_current_limit_mA(current_limit_mA + 1.0f32)
+            .await?;
+        let current_limit_mA2 = ctl200.current_limit_mA().await?;
+        info!("New limit is {} mA", current_limit_mA2);
+        let _ = ctl200.set_current_limit_mA(current_limit_mA).await; // reset
+    }
+
+    {
+        let interlock_en = ctl200.interlock_en().await?;
+        info!("Interlock is {}", if interlock_en { "ON" } else { "OFF" });
+        ctl200.set_interlock_en(!interlock_en).await?;
+        let interlock_en2 = ctl200.interlock_en().await?;
+        info!(
+            "New Interlock is {}",
+            if interlock_en2 { "ON" } else { "OFF" }
+        );
+        let _ = ctl200.set_interlock_en(interlock_en).await; // reset
+        if interlock_en2 == interlock_en {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let current_mod_gain_mA_V = ctl200.laser_current_mod_gain_mA_V().await?;
+        info!(
+            "Current laser modulation gain is {} mA/V",
+            current_mod_gain_mA_V
+        );
+        ctl200
+            .set_laser_current_mod_gain_mA_V(current_mod_gain_mA_V + 1.0f32)
+            .await?;
+        let current_mod_gain_mA_V2 = ctl200.laser_current_mod_gain_mA_V().await?;
+        info!(
+            "New laser modulation gain is {} mA/V",
+            current_mod_gain_mA_V2
+        );
+        let _ = ctl200.set_laser_current_mod_gain_mA_V(current_mod_gain_mA_V).await; // reset
+        if (current_mod_gain_mA_V2 - current_mod_gain_mA_V - 1f32).abs() > 0.1f32 {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let tec = ctl200.tec_en().await?;
+        info!("TEC is {}", if tec { "ON" } else { "OFF" });
+        ctl200.set_tec_en(!tec).await?;
+        let tec2 = ctl200.tec_en().await?;
+        info!("New TEC is {}", if tec2 { "ON" } else { "OFF" });
+        let _ = ctl200.set_tec_en(tec).await; // reset
+        if tec2 == tec {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let temp_protect = ctl200.temp_prot_en().await?;
+        info!(
+            "Temperature protection is {}",
+            if temp_protect { "ON" } else { "OFF" }
+        );
+        ctl200.set_temp_prot_en(!temp_protect).await?;
+        let temp_protect2 = ctl200.temp_prot_en().await?;
+        info!(
+            "New temperature protection is {}",
+            if temp_protect2 { "ON" } else { "OFF" }
+        );
+        let _ = ctl200.set_temp_prot_en(temp_protect).await; // reset
+        if temp_protect2 == temp_protect {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let temp_set_Ohm = ctl200.temp_set_Ohm().await?;
+        info!("Temperature setpoint is {} Ohm", temp_set_Ohm);
+        ctl200.set_temp_set_Ohm(temp_set_Ohm + 1.0f32).await?;
+        let temp_set_Ohm2 = ctl200.temp_set_Ohm().await?;
+        info!("New temperature setpoint is {} Ohm", temp_set_Ohm2);
+        let _ = ctl200.set_temp_set_Ohm(temp_set_Ohm).await; // reset
+        if (temp_set_Ohm2 - temp_set_Ohm - 1f32).abs() > 0.1f32 {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let prop_gain = ctl200.prop_gain().await?;
+        info!("Proportional gain is {}", prop_gain);
+        ctl200.set_prop_gain(prop_gain + 1.0f32).await?;
+        let prop_gain2 = ctl200.prop_gain().await?;
+        info!("New proportional gain is {}", prop_gain2);
+        let _ = ctl200.set_prop_gain(prop_gain).await; // reset
+    }
+
+    {
+        let int_gain = ctl200.int_gain().await?;
+        info!("Integral gain is {}", int_gain);
+        ctl200.set_int_gain(int_gain + 1.0f32).await?;
+        let int_gain2 = ctl200.int_gain().await?;
+        info!("New integral gain is {}", int_gain2);
+        let _ = ctl200.set_int_gain(int_gain).await; // reset
+    }
+
+    {
+        let diff_gain = ctl200.diff_gain().await?;
+        info!("Differential gain is {}", diff_gain);
+        ctl200.set_diff_gain(diff_gain + 1.0f32).await?;
+        let diff_gain2 = ctl200.diff_gain().await?;
+        info!("New differential gain is {}", diff_gain2);
+        let _ = ctl200.set_diff_gain(diff_gain).await; // reset
+    }
+
+    {
+        let temp_min_Ohm = ctl200.temp_min_Ohm().await?;
+        info!("Minimum temperature is {} Ohm", temp_min_Ohm);
+        ctl200.set_temp_min_Ohm(temp_min_Ohm + 1.0f32).await?;
+        let temp_min_Ohm2 = ctl200.temp_min_Ohm().await?;
+        info!("New minimum temperature is {} Ohm", temp_min_Ohm2);
+        let _ = ctl200.set_temp_min_Ohm(temp_min_Ohm).await; // reset
+        if (temp_min_Ohm2 - temp_min_Ohm - 1f32).abs() > 0.1f32 {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let temp_max_Ohm = ctl200.temp_max_Ohm().await?;
+        info!("Maximum temperature is {} Ohm", temp_max_Ohm);
+        ctl200.set_temp_max_Ohm(temp_max_Ohm + 1.0f32).await?;
+        let temp_max_Ohm2 = ctl200.temp_max_Ohm().await?;
+        info!("New maximum temperature is {} Ohm", temp_max_Ohm2);
+        let _ = ctl200.set_temp_max_Ohm(temp_max_Ohm).await; // reset
+        if (temp_max_Ohm2 - temp_max_Ohm - 1f32).abs() > 0.1f32 {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let tec_min_V = ctl200.tec_min_V().await?;
+        info!("Minimum TEC voltage is {} V", tec_min_V);
+        ctl200.set_tec_min_V(tec_min_V + 1.0f32).await?;
+        let tec_min_V2 = ctl200.tec_min_V().await?;
+        info!("New minimum TEC voltage is {} V", tec_min_V2);
+        let _ = ctl200.set_tec_min_V(tec_min_V).await; // reset
+        if (tec_min_V2 - tec_min_V - 1f32).abs() > 0.1f32 {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let tec_max_V = ctl200.tec_max_V().await?;
+        info!("Maximum TEC voltage is {} V, {}", tec_max_V, tec_max_V + 1f32);
+        ctl200.set_tec_max_V(tec_max_V + 1f32).await?;
+        let tec_max_V2 = ctl200.tec_max_V().await?;
+        info!("New maximum TEC voltage is {} V", tec_max_V2);
+        let _ = ctl200.set_tec_max_V(tec_max_V).await; // reset
+        // TODO(xguo): This one is really weird, while "vtmax 4.0" will 
+        // set this to 2.0 Will double check next.
+    }
+
+    {
+        let temp_mod_gain_Ohm_V = ctl200.temp_mod_gain_Ohm_V().await?;
+        info!(
+            "Temperature modulation gain is {} Ohm/V",
+            temp_mod_gain_Ohm_V
+        );
+        ctl200
+            .set_temp_mod_gain_Ohm_V(temp_mod_gain_Ohm_V + 1.0f32)
+            .await?;
+        let temp_mod_gain_Ohm_V2 = ctl200.temp_mod_gain_Ohm_V().await?;
+        info!(
+            "New temperature modulation gain is {} Ohm/V",
+            temp_mod_gain_Ohm_V2
+        );
+        let _ = ctl200.set_temp_mod_gain_Ohm_V(temp_mod_gain_Ohm_V).await?;  // reset
+        if (temp_mod_gain_Ohm_V2 - temp_mod_gain_Ohm_V - 1f32).abs() > 0.1f32 {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let temp_act_Ohm = ctl200.temp_act_Ohm().await?;
+        info!("Actual temperature is {} Ohm", temp_act_Ohm);
+        let tec_current_A = ctl200.tec_current_A().await?;
+        info!("Current is {} A", tec_current_A);
+        let tec_voltage_V = ctl200.tec_voltage_V().await?;
+        info!("Voltage is {} V", tec_voltage_V);
+        let laser_V: f32 = ctl200.laser_V().await?;
+        info!("Laser voltage is {} V", laser_V);
+        let ain_1_V = ctl200.ain_1_V().await?;
+        info!("AIN 1 is {} V", ain_1_V);
+        let ain_2_V = ctl200.ain_2_V().await?;
+        info!("AIN 2 is {} V", ain_2_V);
+        let board_temp_C = ctl200.board_temp_C().await?;
+        info!("Board temperature is {} C", board_temp_C);
+        // let board_status = ctl200.board_status().await?;
+        // info!("Board status is 0x{:X}", board_status);
+        let serial_number = ctl200.serial_number().await?;
+        info!("Serial number is {}", serial_number);
+    }
+
+    {
+        let userdata = ctl200.userdata().await?;
+        info!("User data is {}", userdata);
+        const MAX_STRING_SIZE: usize = 32;
+        let userdata = FixedSizeString::from_str("hello")?;
+        ctl200.set_userdata(userdata).await?;
+        let userdata2 = ctl200.userdata().await?;
+        info!("New user data is {}", userdata2);
+        if userdata2.as_str() != "hello" {
+            return Err(Error::WriteError);
+        }
+    }
+
+    {
+        let baud_rate_Hz = ctl200.baud_rate_Hz().await?;
+        info!("Baud rate is {} Hz", baud_rate_Hz);
+        ctl200.set_baud_rate_Hz(baud_rate_Hz - 10).await?;
+        let baud_rate_Hz2 = ctl200.baud_rate_Hz().await?;
+        info!("New baud rate is {} Hz", baud_rate_Hz2);
+        let _ = ctl200.set_baud_rate_Hz(baud_rate_Hz).await; // reset
+    }
+    
+    {
+        // untested: err / clear_err / save_config
+        // Too long string: board_status
+        // Unknown: vtmax
+    }
+
     Ok(())
 }
 
-#[embassy_executor::task]
-async fn ctl200_task(
-    ctl200: Ctl200<
-        UartWrapper<'static, peripherals::UART7, peripherals::DMA1_CH0, peripherals::DMA1_CH1>,
-    >,
-) -> ! {
-    info!("Requesting CTL200 firmware version...");
-    match ctl200_process(ctl200).await {
-        Ok(_) => {
-            info!("CTL200 testing process PASS");
-            debug::exit(debug::EXIT_SUCCESS);
-        }
-        Err(e) => {
-            error!("Failed in running the CTL200 testing process: {:?}", e);
-            debug::exit(debug::EXIT_FAILURE);
-        }
-    }
-
-    info!("Entering main loop...");
-    loop {}
-}
-
 #[embassy_executor::main]
-async fn main(spawner: Spawner) -> ! {
+async fn main(_spawner: Spawner) -> ! {
     let p = embassy_stm32::init(Default::default());
     info!("CTL200 Example Starting!");
 
     let config = Config::default();
-    let uart = Uart::new(p.UART7, p.PF6, p.PF7, Irqs, p.DMA1_CH0, p.DMA1_CH1, config).unwrap();
-    let uart_wrapper = UartWrapper::new(uart);
-    let ctl200: Ctl200<
-        UartWrapper<'_, peripherals::UART7, peripherals::DMA1_CH0, peripherals::DMA1_CH1>,
-    > = Ctl200::new(uart_wrapper);
-    let _ = spawner.spawn(ctl200_task(ctl200)).unwrap();
+    static mut TX_BUF: [u8; 256] = [0u8; 256];
+    static mut RX_BUF: [u8; 256] = [0u8; 256];
+    #[allow(static_mut_refs)]
+    let usart = unsafe { BufferedUart::new(p.UART7, Irqs, p.PF6, p.PF7, &mut TX_BUF, &mut RX_BUF, config).unwrap() };
+
+    // let mut buf = [0; 4];
+    // loop {
+    //     usart.read_exact(&mut buf[..]).await.unwrap();
+    //     usart.write_all(&buf[..]).await.unwrap();
+    // }
+    let ctl200  = Ctl200::new(usart);
+
+    match ctl200_process(ctl200).await {
+        Ok(_) => {
+            info!("CTL200 testing process PASS");
+        }
+        Err(e) => {
+            error!("Failed in running the CTL200 testing process: {:?}", e);
+        }
+    }
 
     loop {
+        info!("Main loop...");
         Timer::after_millis(1000).await;
     }
 }

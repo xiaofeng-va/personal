@@ -1,10 +1,13 @@
+# TODO(xguo): Reorg the file.
+
 [package]
 name = "ferox-stm32"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ferox = { version = "*", path = "../ferox", features = ["defmt"] }
+ferox = { version = "0.1", path = "../ferox", default-features = false, features = ["defmt"] }
+defmt = { version = "0.3.10" }
 
 [dev-dependencies]
 static_cell = "2.1"
@@ -18,16 +21,18 @@ embedded-hal-async = "1.0.0"
 embassy-futures = "0.1.1"
 embedded-io = "0.6.1"
 embedded-io-async = "0.6.1"
-embassy-stm32 = { version = "0.1.0", features = ["memory-x", "stm32h723zg", "time-driver-any", "exti", "unstable-pac"] }
+embassy-stm32 = { version = "0.1.0", features = ["defmt", "memory-x", "stm32h723zg", "time-driver-any", "exti", "unstable-pac"] }
 embassy-sync = "0.6.1"
 embassy-time = { version = "0.3.2", features = ["tick-hz-32_768"] }
 panic-halt = "1.0.0"
-defmt = { version = "0.3.10" }
 defmt-rtt = { version = "0.4.1" }
 panic-probe = { version = "0.3.2", features = ["print-defmt"] }
+num-traits = { version = "0.2", default-features = false }
+grounded = "0.2"
 
 [features]
-default = ["debug"]
+defmt = []
+default = ["debug", "defmt"]
 debug = [
     "embassy-executor/defmt",
     "embassy-sync/defmt",
