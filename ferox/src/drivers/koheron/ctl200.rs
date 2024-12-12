@@ -75,7 +75,7 @@ where
 {
     pub fn new(uart: U) -> Self {
         Ctl200 {
-            uart: uart,
+            uart,
             buf: [0; MAX_STRING_SIZE],
             buf_pos: 0,
         }
@@ -402,14 +402,20 @@ where
     /// Returns the serial number of the board.
     pub async fn serial_number(&mut self) -> Result<&'_ [u8]> {
         let serial = self.get::<&'_ [u8]>("serial").await?;
-        debug!("serial: {:?}", from_utf8(serial).map_err(|_| Error::UnparsableData)?);
+        debug!(
+            "serial: {:?}",
+            from_utf8(serial).map_err(|_| Error::UnparsableData)?
+        );
         Ok(serial)
     }
 
     /// Returns the user data string.
     pub async fn userdata<'b>(&mut self) -> Result<&'_ [u8]> {
         let data = self.get::<&'_ [u8]>("userdata").await?;
-        debug!("userdata: {:?}", from_utf8(data).map_err(|_| Error::UnparsableData)?);
+        debug!(
+            "userdata: {:?}",
+            from_utf8(data).map_err(|_| Error::UnparsableData)?
+        );
         Ok(data)
     }
 
@@ -418,7 +424,10 @@ where
         if !data.is_ascii() || data.iter().any(|&b| b.is_ascii_whitespace()) {
             return Err(Error::DeviceError);
         }
-        debug!("userdata write: {:?}", from_utf8(data).map_err(|_| Error::UnparsableData)?);
+        debug!(
+            "userdata write: {:?}",
+            from_utf8(data).map_err(|_| Error::UnparsableData)?
+        );
         self.set("userdata write", Value::String(data)).await
     }
 
@@ -801,28 +810,4 @@ mod tests {
         debug!(">>>Getting lason as true");
         assert_eq!(ctl200.get::<bool>("lason").await.unwrap(), true);
     }
-
-    //     #[test]
-    //     fn test_board_status_display() {
-    //         let status = BoardStatus {
-    //             laser_on: true,
-    //             laser_volts: 3.14,
-    //             tec_amps: 1.23,
-    //             tec_volts: 4.56,
-    //             thermistor_ohms: 10000.0,
-    //             photodiode_mA: 0.789,
-    //             aux_in_1_volts: 2.345,
-    //             aux_in_2_volts: 3.456,
-    //         };
-
-    //         let expected: &str = "\
-    // Ctl200 board status:
-    //   Laser: ON(3.140V)
-    //   TEC status: 1.230A@4.560V
-    //   Thermistor: 10000.000Ohms
-    //   Photodiode current: 0.789mA
-    //   Auxiliary inputs: #1(2.345V) #2(3.456V)";
-
-    //         assert_eq!(format_fixed!("{}", status).as_str(), expected);
-    //     }
 }

@@ -1,6 +1,6 @@
 # This file was automatically generated.
 
-[target.thumbv7em-none-eabi]
+[target.thumbv7em-none-eabihf]
 runner = 'probe-rs run --chip STM32H723ZGTx'
 
 rustflags = [
@@ -12,7 +12,7 @@ rustflags = [
 rustflags = ["-C", "panic=abort", "-Zpanic_abort_tests"]
 
 [build]
-target = "thumbv7em-none-eabi"
+target = "thumbv7em-none-eabihf"
 
 [env]
 DEFMT_LOG = "trace"
