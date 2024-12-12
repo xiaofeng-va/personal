@@ -23,11 +23,11 @@ env_logger = "0.11.5"
 [features]
 defmt = [ "dep:defmt" ]
 log = [ "dep:log" ]
-full-error-messages = []
+full-display = []
 
 default = [ "std" ]
 std = [
-    "full-error-messages",
+    "full-display",
     "log"
 ]
 embedded = [ "defmt" ]

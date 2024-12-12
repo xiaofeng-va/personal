@@ -6,21 +6,16 @@ use core::default::Default;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_stm32::{
-    bind_interrupts,
-    dma::NoDma,
-    peripherals,
-    usart::{self, BasicInstance, BufferedUart, Config, RingBufferedUartRx, Uart, UartTx},
+    bind_interrupts, peripherals,
+    usart::{self, BufferedUart, Config},
 };
 use embassy_time::Timer;
-use embedded_io::ErrorType;
-use embedded_io_async::{Read, Write};
 use ferox::{
     drivers::koheron::ctl200::{Ctl200, Error},
-    error, info, debug,
+    error, info,
 };
-use panic_halt as _;
-use static_cell::StaticCell;
 use num_traits::float::FloatCore;
+use panic_halt as _;
 
 bind_interrupts!(struct Irqs {
     UART7 => usart::BufferedInterruptHandler<peripherals::UART7>;
@@ -110,7 +105,9 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
             "New laser modulation gain is {} mA/V",
             current_mod_gain_mA_V2
         );
-        let _ = ctl200.set_laser_current_mod_gain_mA_V(current_mod_gain_mA_V).await; // reset
+        let _ = ctl200
+            .set_laser_current_mod_gain_mA_V(current_mod_gain_mA_V)
+            .await; // reset
         if (current_mod_gain_mA_V2 - current_mod_gain_mA_V - 1f32).abs() > 0.1f32 {
             return Err(Error::WriteError);
         }
@@ -223,13 +220,17 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
 
     {
         let tec_max_V = ctl200.tec_max_V().await?;
-        info!("Maximum TEC voltage is {} V, {}", tec_max_V, tec_max_V + 1f32);
+        info!(
+            "Maximum TEC voltage is {} V, {}",
+            tec_max_V,
+            tec_max_V + 1f32
+        );
         ctl200.set_tec_max_V(tec_max_V + 1f32).await?;
         let tec_max_V2 = ctl200.tec_max_V().await?;
         info!("New maximum TEC voltage is {} V", tec_max_V2);
         let _ = ctl200.set_tec_max_V(tec_max_V).await; // reset
-        // TODO(xguo): This one is really weird, while "vtmax 4.0" will 
-        // set this to 2.0 Will double check next.
+                                                       // TODO(xguo): This one is really weird, while "vtmax 4.0" will
+                                                       // set this to 2.0 Will double check next.
     }
 
     {
@@ -246,7 +247,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
             "New temperature modulation gain is {} Ohm/V",
             temp_mod_gain_Ohm_V2
         );
-        let _ = ctl200.set_temp_mod_gain_Ohm_V(temp_mod_gain_Ohm_V).await?;  // reset
+        let _ = ctl200.set_temp_mod_gain_Ohm_V(temp_mod_gain_Ohm_V).await?; // reset
         if (temp_mod_gain_Ohm_V2 - temp_mod_gain_Ohm_V - 1f32).abs() > 0.1f32 {
             return Err(Error::WriteError);
         }
@@ -294,7 +295,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         info!("New baud rate is {} Hz", baud_rate_Hz2);
         let _ = ctl200.set_baud_rate_Hz(baud_rate_Hz).await; // reset
     }
-    
+
     {
         // untested: err / clear_err / save_config
         // Too long string: board_status

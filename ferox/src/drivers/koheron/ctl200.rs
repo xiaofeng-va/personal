@@ -41,9 +41,9 @@ impl<'a> FromBytes<'a> for bool {
 impl<'a> FromBytes<'a> for i32 {
     fn from_bytes(bytes: &'a [u8]) -> Result<Self> {
         core::str::from_utf8(bytes)
-            .map_err(|_| Error::InvalidResponse)?
+            .map_err(|_| Error::BytesToUTF8Error)?
             .parse()
-            .map_err(|_| Error::InvalidResponse)
+            .map_err(|_| Error::ParseIntError)
     }
 }
 
@@ -51,9 +51,9 @@ impl<'a> FromBytes<'a> for i32 {
 impl<'a> FromBytes<'a> for f32 {
     fn from_bytes(bytes: &'a [u8]) -> Result<Self> {
         core::str::from_utf8(bytes)
-            .map_err(|_| Error::InvalidResponse)?
+            .map_err(|_| Error::BytesToUTF8Error)?
             .parse()
-            .map_err(|_| Error::InvalidResponse)
+            .map_err(|_| Error::ParseFloatError)
     }
 }
 
@@ -404,7 +404,7 @@ where
         let serial = self.get::<&'_ [u8]>("serial").await?;
         debug!(
             "serial: {:?}",
-            from_utf8(serial).map_err(|_| Error::UnparsableData)?
+            from_utf8(serial).map_err(|_| Error::BytesToUTF8Error)?
         );
         Ok(serial)
     }
@@ -414,7 +414,7 @@ where
         let data = self.get::<&'_ [u8]>("userdata").await?;
         debug!(
             "userdata: {:?}",
-            from_utf8(data).map_err(|_| Error::UnparsableData)?
+            from_utf8(data).map_err(|_| Error::BytesToUTF8Error)?
         );
         Ok(data)
     }
@@ -426,7 +426,7 @@ where
         }
         debug!(
             "userdata write: {:?}",
-            from_utf8(data).map_err(|_| Error::UnparsableData)?
+            from_utf8(data).map_err(|_| Error::BytesToUTF8Error)?
         );
         self.set("userdata write", Value::String(data)).await
     }
@@ -463,7 +463,7 @@ where
     pub async fn version(&mut self) -> Result<&[u8]> {
         debug!("Ctl200::version() 0");
         let resp: &[u8] = self.get::<&[u8]>("version").await?;
-        let t = core::str::from_utf8(resp).map_err(|_| Error::InvalidResponse)?;
+        let t = core::str::from_utf8(resp).map_err(|_| Error::BytesToUTF8Error)?;
         debug!("version: {:?}", t);
         Ok(resp)
     }
@@ -623,16 +623,20 @@ pub enum Error {
     DeviceError,
     EchoMismatch,
     FlushError,
-    InvalidBoolean,
-    InvalidFirmwareVersion,
     InvalidResponse,
     ReadError,
-    StringTooLongError,
-    UnparsableData,
     WriteError,
+
+    BytesToUTF8Error = 0x1000,
+    InvalidBoolean,
+    ParseIntError,
+    ParseFloatError,
+
+    // Used by application
+    InvalidFirmwareVersion = 0x2000,
 }
 
-#[cfg(not(feature = "full-error-messages"))]
+#[cfg(not(feature = "full-display"))]
 impl core::fmt::Display for Error {
     fn fmt(&self, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // do nothing if the feature is not enabled
@@ -640,7 +644,7 @@ impl core::fmt::Display for Error {
     }
 }
 
-#[cfg(feature = "full-error-messages")]
+#[cfg(feature = "full-display")]
 impl core::fmt::Display for Error {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -650,11 +654,12 @@ impl core::fmt::Display for Error {
             Error::InvalidFirmwareVersion => write!(f, "Invalid firmware version"),
             Error::InvalidResponse => write!(f, "Invalid response"),
             Error::ReadError => write!(f, "Read error"),
-            Error::StringTooLongError => write!(f, "String too long error"),
             Error::WriteError => write!(f, "Write error"),
             Error::DeviceError => write!(f, "Device error"),
             Error::InvalidBoolean => write!(f, "Invalid boolean"),
-            Error::UnparsableData => write!(f, "Unparsable data"),
+            Error::BytesToUTF8Error => write!(f, "Bytes to UTF-8 error"),
+            Error::ParseIntError => write!(f, "Parse int error"),
+            Error::ParseFloatError => write!(f, "Parse float error"),
         }
     }
 }
