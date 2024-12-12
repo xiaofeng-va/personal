@@ -18,5 +18,5 @@ target = "thumbv7em-none-eabi"
 DEFMT_LOG = "trace"
 
 [alias]
-rx = "run --example"
-bx = "build --example"
+rx = "run --release --example"
+bx = "build --release --example"
