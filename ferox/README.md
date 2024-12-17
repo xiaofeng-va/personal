@@ -1,4 +1,7 @@
 ## Experimental examples
+
+### [NUCLEO-H723ZG Pinouts](https://os.mbed.com/platforms/ST-Nucleo-H743ZI2/)
+
 ### Blinky
 Connect the MicroUSB with the NUCLEO board, and run the command below:
 ```
@@ -25,9 +28,9 @@ You should be able to connect the two devices.
 ### CTL200
 
 #### Wiring (STM32 <=> CTL200)
-PF6 (RX) <=> CTL200 TX
-PF7 (TX) <=> CTL200 RX
-GND <=> CTL200 GND
+- PF6 (RX) <=> CTL200 TX
+- PF7 (TX) <=> CTL200 RX
+- GND <=> CTL200 GND
 
 Based on the wiring, you can run command below to connect CTL200 and STM32:
 ```shell
