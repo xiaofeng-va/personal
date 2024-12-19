@@ -5,16 +5,15 @@ use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_stm32::{
-    bind_interrupts, peripherals,
-    peripherals::UART4,
-    usart,
-    usart::{BufferedUart, BufferedUartRx, Config},
+    bind_interrupts, peripherals::{self, UART4},
+    usart::{self, BufferedUart, BufferedUartRx, BufferedUartTx, Config},
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embedded_io_async::{Read, Write};
-use ferox::{drivers::koheron::ctl200, proto::{data::FeroxProto, errors::Error}};
-use ferox_stm32::handler::{handle_ctl200_request, handle_ferox_request};
+use ferox::{drivers::koheron::ctl200, proto::{data::FeroxProto, errors::Error}, MAX_STRING_SIZE};
+use ferox_stm32::handler::{handle_ctl200_request, handle_ferox_request, handle_request};
 use panic_probe as _;
+use embassy_time::{Duration, Timer};
 
 bind_interrupts!(struct Irqs {
     UART4 => usart::BufferedInterruptHandler<peripherals::UART4>;
@@ -59,17 +58,14 @@ async fn main(spawner: Spawner) -> ! {
     let (mut tx, rx) = usart.split();
 
     unwrap!(spawner.spawn(reader(rx)));
+    unwrap!(spawner.spawn(processor(tx)));
 
     loop {
-        let buf = CHANNEL.receive().await;
-        info!("writing... {:?}", buf);
-        unwrap!(tx.write_all(&buf).await);
-        unwrap!(tx.write_all(&buf).await);
-        info!("wrote... {:?}", buf);
+        Timer::after(Duration::from_millis(1000)).await;
     }
 }
 
-async fn process_message(buf: &[u8]) -> ferox::proto::errors::Result<FeroxProto> {
+async fn process_message(tx: &mut BufferedUartTx<'_, UART4>) -> ferox::proto::errors::Result<()> {
     // Read the size byte
     let size = CHANNEL.receive().await[0] as usize;
 
@@ -80,30 +76,21 @@ async fn process_message(buf: &[u8]) -> ferox::proto::errors::Result<FeroxProto>
         *byte = CHANNEL.receive().await[0];
     }
 
-    match postcard::from_bytes::<FeroxProto>(&content_buf) {
-        Ok(FeroxProto::FeroxRequest(ferox_req)) => {
-            Ok(FeroxProto::FeroxResponse(handle_ferox_request(&ferox_req)?))
-        }
-        Ok(FeroxProto::Ctl200Request(ctl200_req)) => {
-            Ok(FeroxProto::Ctl200Response(handle_ctl200_request(&ctl200_req)?))
-        }
-        Err(e) => {
-            // TODO(xguo): Enable defmt-or-log and add error_id to the log.
-            warn!("Failed to deserialize FeroxProto");
-            Err(Error::PostcardDeserializeError)
-        }
-        _ => {
-            warn!("Received an unexpected FeroxProto, {}", content_buf);
-            Err(Error::UnexpectedFeroxRequest)
-        }
-    }
+    let req = postcard::from_bytes::<FeroxProto>(&content_buf).map_err(|_| Error::PostcardDeserializeError)?;
+    let resp = handle_request(req).await?;
+    let resp_bytes: heapless::Vec<u8, MAX_STRING_SIZE> = postcard::to_vec(&resp).map_err(|_| Error::PostcardSerializeError)?;
+    let resp_size = resp_bytes.len() as u8;
+    tx.write_all(&[resp_size]).await.map_err(|_| Error::WriteError)?;
+    tx.write_all(&resp_bytes).await.map_err(|_| Error::WriteError)?;
+
+    Ok(())
 }
 
 #[embassy_executor::task]
-async fn processor() {
+async fn processor(mut tx: BufferedUartTx<'static, UART4>) {
     loop {
         info!("Waiting for a message...");
-        match process_message(&[]).await {
+        match process_message(&mut tx).await {
             Ok(_) => info!("Message processed successfully"),
             Err(e) => warn!("Error processing message: {:?}", e),
         }

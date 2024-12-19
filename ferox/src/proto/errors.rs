@@ -18,6 +18,7 @@ pub enum Error {
 
     InvalidCommand,
     PostcardDeserializeError,
+    PostcardSerializeError,
     UnexpectedFeroxRequest,
 
     // Used by application
@@ -50,6 +51,7 @@ impl core::fmt::Display for Error {
             Error::InvalidCommand => write!(f, "Invalid command"),
             Error::PostcardDeserializeError => write!(f, "Postcard deserialize error"),
             Error::UnexpectedFeroxRequest => write!(f, "Unexpected Ferox request"),
+            Error::PostcardSerializeError => write!(f, "Postcard serialize error"),
         }
     }
 }
