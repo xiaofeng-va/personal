@@ -11,20 +11,21 @@ use embassy_stm32::{
 };
 use embassy_time::Timer;
 use ferox::{
-    drivers::koheron::ctl200::{Ctl200, Error},
-    error, info,
+    drivers::koheron::ctl200::{Ctl200, Ctl200Provider},
+    error, info, proto::errors::{Error, Result},
 };
-use num_traits::float::FloatCore;
 use panic_halt as _;
+use num_traits::float::FloatCore;
 
 bind_interrupts!(struct Irqs {
     UART7 => usart::BufferedInterruptHandler<peripherals::UART7>;
 });
 
-type CTL200 = Ctl200<BufferedUart<'static, peripherals::UART7>>;
+type CTL200_PROVIDER<'a> = Ctl200Provider<BufferedUart<'a, peripherals::UART7>>;
 
 #[allow(non_snake_case)]
-async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
+async fn ctl200_process(mut ctl200_provider: CTL200_PROVIDER<'_>) -> Result<()> {
+    let mut ctl200 = ctl200_provider.get_ctl200();
     if ctl200.version().await? != b"V0.17" {
         return Err(Error::InvalidFirmwareVersion);
     }
@@ -328,8 +329,8 @@ async fn main(_spawner: Spawner) -> ! {
         .unwrap()
     };
 
-    let ctl200 = Ctl200::new(usart);
-    match ctl200_process(ctl200).await {
+    let mut ctl200_provider = Ctl200Provider::new(usart);
+    match ctl200_process(ctl200_provider).await {
         Ok(_) => {
             info!("CTL200 Example Finished!");
         }

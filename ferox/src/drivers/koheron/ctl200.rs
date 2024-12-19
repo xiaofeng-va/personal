@@ -7,6 +7,7 @@ use embedded_io_async::{Read, Write};
 use heapless::String;
 
 use crate::{debug, info};
+use crate::proto::errors::{Error, Result};
 
 const CRLF: &[u8] = b"\r\n";
 const CRLF_PROMPT: &[u8] = b"\r\n>>";
@@ -60,20 +61,41 @@ impl<'a> FromBytes<'a> for f32 {
 /// Driver for CTL200 Laser Controller
 ///
 /// See <https://www.koheron.com/support/user-guides/ctl200/>.
-pub struct Ctl200<U>
+
+pub struct Ctl200Provider<U>
 where
     U: Read + Write + 'static,
 {
     uart: U,
-    buf: [u8; MAX_STRING_SIZE],
-    buf_pos: usize,
 }
 
-impl<U> Ctl200<U>
+impl<U> Ctl200Provider<U>
 where
     U: Read + Write + 'static,
 {
     pub fn new(uart: U) -> Self {
+        Ctl200Provider { uart }
+    }
+
+    pub fn get_ctl200(&mut self) -> Ctl200<'_, U> {
+        Ctl200::new(&mut self.uart)
+    }
+}
+
+pub struct Ctl200<'a, U>
+where
+    U: Read + Write + 'static,
+{
+    uart: &'a mut U,
+    buf: [u8; MAX_STRING_SIZE],
+    buf_pos: usize,
+}
+
+impl<'a, U> Ctl200<'a, U>
+where
+    U: Read + Write + 'static,
+{
+    pub fn new(uart: &'a mut U) -> Self {
         Ctl200 {
             uart,
             buf: [0; MAX_STRING_SIZE],
@@ -463,8 +485,7 @@ where
     pub async fn version(&mut self) -> Result<&[u8]> {
         debug!("Ctl200::version() 0");
         let resp: &[u8] = self.get::<&[u8]>("version").await?;
-        let t = core::str::from_utf8(resp).map_err(|_| Error::BytesToUTF8Error)?;
-        debug!("version: {:?}", t);
+        debug!("version: {:?}", resp);
         Ok(resp)
     }
 
@@ -615,58 +636,6 @@ impl<'a> Display for Value<'a> {
         }
     }
 }
-
-#[derive(Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum Error {
-    BufferOverflow = 1,
-    DeviceError,
-    EchoMismatch,
-    FlushError,
-    InvalidResponse,
-    ReadError,
-    WriteError,
-
-    BytesToUTF8Error = 0x1000,
-    InvalidBoolean,
-    ParseIntError,
-    ParseFloatError,
-
-    // Used by application
-    InvalidFirmwareVersion = 0x2000,
-}
-
-#[cfg(not(feature = "full-display"))]
-impl core::fmt::Display for Error {
-    fn fmt(&self, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // do nothing if the feature is not enabled
-        Ok(())
-    }
-}
-
-#[cfg(feature = "full-display")]
-impl core::fmt::Display for Error {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Error::BufferOverflow => write!(f, "Buffer overflow"),
-            Error::EchoMismatch => write!(f, "Echo mismatch"),
-            Error::FlushError => write!(f, "Flush error"),
-            Error::InvalidFirmwareVersion => write!(f, "Invalid firmware version"),
-            Error::InvalidResponse => write!(f, "Invalid response"),
-            Error::ReadError => write!(f, "Read error"),
-            Error::WriteError => write!(f, "Write error"),
-            Error::DeviceError => write!(f, "Device error"),
-            Error::InvalidBoolean => write!(f, "Invalid boolean"),
-            Error::BytesToUTF8Error => write!(f, "Bytes to UTF-8 error"),
-            Error::ParseIntError => write!(f, "Parse int error"),
-            Error::ParseFloatError => write!(f, "Parse float error"),
-        }
-    }
-}
-
-impl core::error::Error for Error {}
-
-pub type Result<T> = core::result::Result<T, Error>;
 
 #[cfg(test)]
 mod tests {

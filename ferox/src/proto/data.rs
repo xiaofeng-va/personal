@@ -1,4 +1,4 @@
-use heapless::String;
+use heapless::{String, Vec};
 use serde::{Deserialize, Serialize};
 
 use crate::MAX_STRING_SIZE;
@@ -45,9 +45,10 @@ pub enum Ctl200ResponseType {
 #[cfg(feature = "defmt")]
 impl defmt::Format for Ctl200ResponseType {
     fn format(&self, f: defmt::Formatter) {
+        // constants only to save memory.
         match self {
-            Ctl200ResponseType::Ctl200Version(version) => {
-                defmt::write!(f, "Ctl200Version({=str})", version.as_str())
+            Ctl200ResponseType::Ctl200Version(_) => {
+                defmt::write!(f, "Ctl200Version");
             }
         }
     }

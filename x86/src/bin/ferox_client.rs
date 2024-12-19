@@ -173,11 +173,11 @@ fn write_message(port: &mut Box<dyn SerialPort>, msg: &FeroxProto) -> CmdResult<
     let data =
         postcard::to_vec::<FeroxProto, 8>(&msg).map_err(|e| CmdLineError::PostcardError(e))?;
     // Write size (u16) first
-    let size = data.len() as u16;
+    let size = data.len() as u8;
     let size_bytes = size.to_le_bytes();
+    info!("Sending data: {:?}, {:?}", size_bytes, data);
     port.write(&size_bytes)
         .map_err(CmdLineError::SerialPortError)?;
-
     // Write actual data
     port.write(&data).map_err(CmdLineError::SerialPortError)?;
     port.flush().map_err(CmdLineError::SerialPortError)?;
@@ -192,7 +192,6 @@ fn read_message(port: &mut Box<dyn SerialPort>) -> CmdResult<FeroxProto> {
         .map_err(CmdLineError::SerialPortError)?;
     let size = u8::from_le_bytes(size_buf) as usize;
     info!("Read size: {}", size);
-
     // Read data
     let mut data = vec![0u8; size as usize];
     port.read_exact(&mut data)
