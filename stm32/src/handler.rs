@@ -1,6 +1,6 @@
 use ferox::proto::data::{Ctl200RequestType, Ctl200ResponseType, FeroxProto, FeroxRequestType, FeroxResponseType};
 use ferox::proto::errors::Result;
-use ferox::{_warn, MAX_STRING_SIZE};
+use ferox::MAX_STRING_SIZE;
 use heapless::String;
 
 pub async fn handle_request(req: FeroxProto) -> Result<FeroxProto> {

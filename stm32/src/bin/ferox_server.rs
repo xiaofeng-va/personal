@@ -12,6 +12,7 @@ use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embedded_io_async::{Read, Write};
 use ferox::{drivers::koheron::ctl200, proto::{data::FeroxProto, errors::Error}, MAX_STRING_SIZE};
 use ferox_stm32::handler::{handle_ctl200_request, handle_ferox_request, handle_request};
+use heapless::Vec;
 use panic_probe as _;
 use embassy_time::{Duration, Timer};
 
@@ -78,7 +79,9 @@ async fn process_message(tx: &mut BufferedUartTx<'_, UART4>) -> ferox::proto::er
 
     let req = postcard::from_bytes::<FeroxProto>(&content_buf).map_err(|_| Error::PostcardDeserializeError)?;
     let resp = handle_request(req).await?;
-    let resp_bytes: heapless::Vec<u8, MAX_STRING_SIZE> = postcard::to_vec(&resp).map_err(|_| Error::PostcardSerializeError)?;
+
+    let mut buf = [0u8; 256];
+    let resp_bytes = postcard::to_slice(&resp, &mut buf).map_err(|_| Error::PostcardSerializeError)?;
     let resp_size = resp_bytes.len() as u8;
     tx.write_all(&[resp_size]).await.map_err(|_| Error::WriteError)?;
     tx.write_all(&resp_bytes).await.map_err(|_| Error::WriteError)?;
