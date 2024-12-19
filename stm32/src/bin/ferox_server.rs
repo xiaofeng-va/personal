@@ -5,14 +5,15 @@ use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_stm32::{
-    bind_interrupts,
-    peripherals,
+    bind_interrupts, peripherals,
     peripherals::UART4,
     usart,
     usart::{BufferedUart, BufferedUartRx, Config},
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, channel::Channel};
 use embedded_io_async::{Read, Write};
+use ferox::{drivers::koheron::ctl200, proto::{data::FeroxProto, errors::Error}};
+use ferox_stm32::handler::{handle_ctl200_request, handle_ferox_request};
 use panic_probe as _;
 
 bind_interrupts!(struct Irqs {
@@ -65,6 +66,47 @@ async fn main(spawner: Spawner) -> ! {
         unwrap!(tx.write_all(&buf).await);
         unwrap!(tx.write_all(&buf).await);
         info!("wrote... {:?}", buf);
+    }
+}
+
+async fn process_message(buf: &[u8]) -> ferox::proto::errors::Result<FeroxProto> {
+    // Read the size byte
+    let size = CHANNEL.receive().await[0] as usize;
+
+    // Read the content based on the size
+    let mut content_buf = [0u8; 256];
+    let content_buf = &mut content_buf[..size];
+    for byte in content_buf.iter_mut() {
+        *byte = CHANNEL.receive().await[0];
+    }
+
+    match postcard::from_bytes::<FeroxProto>(&content_buf) {
+        Ok(FeroxProto::FeroxRequest(ferox_req)) => {
+            Ok(FeroxProto::FeroxResponse(handle_ferox_request(&ferox_req)?))
+        }
+        Ok(FeroxProto::Ctl200Request(ctl200_req)) => {
+            Ok(FeroxProto::Ctl200Response(handle_ctl200_request(&ctl200_req)?))
+        }
+        Err(e) => {
+            // TODO(xguo): Enable defmt-or-log and add error_id to the log.
+            warn!("Failed to deserialize FeroxProto");
+            Err(Error::PostcardDeserializeError)
+        }
+        _ => {
+            warn!("Received an unexpected FeroxProto, {}", content_buf);
+            Err(Error::UnexpectedFeroxRequest)
+        }
+    }
+}
+
+#[embassy_executor::task]
+async fn processor() {
+    loop {
+        info!("Waiting for a message...");
+        match process_message(&[]).await {
+            Ok(_) => info!("Message processed successfully"),
+            Err(e) => warn!("Error processing message: {:?}", e),
+        }
     }
 }
 

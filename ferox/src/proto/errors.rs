@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Debug, Serialize, Deserialize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
@@ -18,6 +17,8 @@ pub enum Error {
     ParseFloatError,
 
     InvalidCommand,
+    PostcardDeserializeError,
+    UnexpectedFeroxRequest,
 
     // Used by application
     InvalidFirmwareVersion = 0x2000,
@@ -26,8 +27,7 @@ pub enum Error {
 #[cfg(not(feature = "full-display"))]
 impl core::fmt::Display for Error {
     fn fmt(&self, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // do nothing if the feature is not enabled
-        Ok(())
+        write!(_f, "{:?}", self)
     }
 }
 
@@ -48,6 +48,8 @@ impl core::fmt::Display for Error {
             Error::ParseIntError => write!(f, "Parse int error"),
             Error::ParseFloatError => write!(f, "Parse float error"),
             Error::InvalidCommand => write!(f, "Invalid command"),
+            Error::PostcardDeserializeError => write!(f, "Postcard deserialize error"),
+            Error::UnexpectedFeroxRequest => write!(f, "Unexpected Ferox request"),
         }
     }
 }
