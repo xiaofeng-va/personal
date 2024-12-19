@@ -1,24 +1,29 @@
 // To debug rustyline:
 // RUST_LOG=rustyline=debug cargo run --example example 2> debug.log
 //
-use std::borrow::Cow::{self, Borrowed, Owned};
-use std::io::Read;
-use std::time::Duration;
+use std::{
+    borrow::Cow::{self, Borrowed, Owned}, io::Read, sync::mpsc, thread, time::Duration
+};
 
 use clap::Parser;
-use ferox::debug;
-use ferox::proto::data::FeroxProto;
-use ferox::proto::parse::parse_proto;
-use rustyline::history::FileHistory;
-use rustyline::{Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
-use rustyline::completion::FilenameCompleter;
-use rustyline::highlight::{CmdKind, Highlighter, MatchingBracketHighlighter};
-use rustyline::hint::HistoryHinter;
-use rustyline::validate::MatchingBracketValidator;
+use ferox::{
+    debug, info, proto::{data::FeroxProto, parse::parse_proto}
+};
+use rustyline::{
+    completion::FilenameCompleter,
+    highlight::{CmdKind, Highlighter, MatchingBracketHighlighter},
+    hint::HistoryHinter,
+    history::FileHistory,
+    validate::MatchingBracketValidator,
+    Cmd, CompletionType, Config, EditMode, Editor, KeyEvent,
+};
 use rustyline_derive::{Completer, Helper, Hinter, Validator};
+use serde::de;
 use serialport::SerialPort;
-use x86::errors::{CmdLineError, CmdResult};
-use x86::find_serial_device;
+use x86::{
+    errors::{CmdLineError, CmdResult},
+    find_serial_device,
+};
 
 #[derive(Helper, Completer, Hinter, Validator)]
 struct MyHelper {
@@ -99,27 +104,42 @@ fn main() -> rustyline::Result<()> {
 
     let port_name = match (cli.port, cli.probe) {
         (Some(port), _) => port,
-        (_, Some(probe)) =>
-            find_serial_device(probe.as_str())
-                .expect(format!("Not found port with probe {}", probe).as_str()),
+        (_, Some(probe)) => find_serial_device(probe.as_str())
+            .expect(format!("Not found port with probe {}", probe).as_str()),
         _ => None.expect("No port or probe in your arguments"),
     };
     let mut port = serialport::new(port_name, 115_200)
         .timeout(Duration::from_secs(5))
-        .open().expect("Failed to open port");
+        .open()
+        .expect("Failed to open port");
+
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_secs(60));
+        tx.send(()).unwrap();
+    });
 
     let mut count = 1;
     loop {
         match handle_single_command(&mut rl, &mut port, count) {
-            Ok(_) => {},
+            Ok(_) => {}
+            Err(CmdLineError::Quit) => {
+                break;
+            }
             Err(e) => {
                 eprintln!("Error: {:?}", e);
-                break;
             }
         }
         count += 1;
+        if let Ok(_) = rx.try_recv() {
+            while let Ok(_) = rx.try_recv() {
+            }
+            info!("Rx: Saving history");
+            rl.append_history("history.txt")?;
+        }
     }
-    rl.append_history("history.txt")
+    rl.append_history("history.txt")?;
+    Ok(())
 }
 
 fn handle_single_command(
@@ -128,46 +148,58 @@ fn handle_single_command(
     count: u32,
 ) -> CmdResult<()> {
     let prompt = format!("{count}> ");
-    rl.helper_mut()
-        .expect("No helper")
-        .colored_prompt = format!("\x1b[1;32m{prompt}\x1b[0m");
+    rl.helper_mut().expect("No helper").colored_prompt = format!("\x1b[1;32m{prompt}\x1b[0m");
 
-    let line = rl.readline(&prompt).map_err(|e| CmdLineError::ReadlineError(e))?;
-    rl.add_history_entry(line.as_str()).map_err(|e| CmdLineError::AddHistoryError(e))?;
+    let line = rl
+        .readline(&prompt)
+        .map_err(|e| CmdLineError::ReadlineError(e))?;
+    rl.add_history_entry(line.as_str())
+        .map_err(|e| CmdLineError::AddHistoryError(e))?;
     let msg = parse_proto(&line).map_err(|e| CmdLineError::ParseProtoError(e))?;
 
+    if msg == FeroxProto::Quit {
+        return Err(CmdLineError::Quit);
+    }
+    info!("Sending message: {:?}", msg);
     write_message(port, &msg)?;
-    
+
     let resp = read_message(port)?;
-    debug!("Got response: {:?}", resp);
+    info!("Got response: {:?}", resp);
 
     Ok(())
 }
 
 fn write_message(port: &mut Box<dyn SerialPort>, msg: &FeroxProto) -> CmdResult<()> {
-    let data = postcard::to_vec::<FeroxProto, 8>(&msg).map_err(|e| CmdLineError::PostcardError(e))?;
+    let data =
+        postcard::to_vec::<FeroxProto, 8>(&msg).map_err(|e| CmdLineError::PostcardError(e))?;
     // Write size (u16) first
     let size = data.len() as u16;
     let size_bytes = size.to_le_bytes();
-    port.write(&size_bytes).map_err(CmdLineError::SerialPortError)?;
-    
+    port.write(&size_bytes)
+        .map_err(CmdLineError::SerialPortError)?;
+
     // Write actual data
     port.write(&data).map_err(CmdLineError::SerialPortError)?;
     port.flush().map_err(CmdLineError::SerialPortError)?;
-    
+
     Ok(())
 }
 
 fn read_message(port: &mut Box<dyn SerialPort>) -> CmdResult<FeroxProto> {
     // Read size first
-    let mut size_buf = [0u8; 2];
-    port.read_exact(&mut size_buf).map_err(CmdLineError::SerialPortError)?;
-    let size = u16::from_le_bytes(size_buf);
-    
+    let mut size_buf = [0u8; 1];
+    port.read_exact(&mut size_buf)
+        .map_err(CmdLineError::SerialPortError)?;
+    let size = u8::from_le_bytes(size_buf) as usize;
+    info!("Read size: {}", size);
+
     // Read data
     let mut data = vec![0u8; size as usize];
-    port.read_exact(&mut data).map_err(CmdLineError::SerialPortError)?;
+    port.read_exact(&mut data)
+        .map_err(CmdLineError::SerialPortError)?;
+    info!("Read data: {:?}", data);
     let resp = postcard::from_bytes::<FeroxProto>(&data).map_err(CmdLineError::PostcardError)?;
-    
+    info!("Parsed response: {:?}", resp);
+
     Ok(resp)
 }

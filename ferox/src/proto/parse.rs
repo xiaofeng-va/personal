@@ -14,6 +14,7 @@ where
     I: Iterator<Item = &'a str>,
 {
     match tokens.next() {
+        Some("quit") => Ok(FeroxProto::Quit),
         Some("ferox") => parse_ferox_command(tokens),
         Some("ctl200") => parse_ctl200_command(tokens),
         _ => Err(Error::InvalidCommand),

@@ -15,6 +15,7 @@ use ferox_stm32::handler::{handle_ctl200_request, handle_ferox_request, handle_r
 use heapless::Vec;
 use panic_probe as _;
 use embassy_time::{Duration, Timer};
+use ferox::proto::errors::Result;
 
 bind_interrupts!(struct Irqs {
     UART4 => usart::BufferedInterruptHandler<peripherals::UART4>;
@@ -66,25 +67,63 @@ async fn main(spawner: Spawner) -> ! {
     }
 }
 
-async fn process_message(tx: &mut BufferedUartTx<'_, UART4>) -> ferox::proto::errors::Result<()> {
+async fn recv_data_with_size(size: usize, buf: &mut [u8], timeout_ms: u64) -> Result<&mut [u8]> {
+    for byte in &mut buf[..size] {
+        let result = embassy_futures::select::select(
+            CHANNEL.receive(),
+            Timer::after(Duration::from_millis(timeout_ms)),
+        )
+        .await;
+
+        match result {
+            embassy_futures::select::Either::First(data) => *byte = data[0],
+            embassy_futures::select::Either::Second(_) => {
+                warn!("Timeout while receiving data");
+                return Err(Error::TimeoutError);
+            }
+        }
+    }
+    Ok(&mut buf[..size])
+}
+
+async fn process_message(tx: &mut BufferedUartTx<'_, UART4>) -> Result<()> {
+    debug!("Starting to process message");
+
     // Read the size byte
     let size = CHANNEL.receive().await[0] as usize;
+    debug!("Received size: {}", size);
 
     // Read the content based on the size
     let mut content_buf = [0u8; 256];
-    let content_buf = &mut content_buf[..size];
-    for byte in content_buf.iter_mut() {
-        *byte = CHANNEL.receive().await[0];
-    }
+    let recv_data = recv_data_with_size(size, &mut content_buf, 1_000).await?;
+    debug!("Received content: {:?}", recv_data);
 
-    let req = postcard::from_bytes::<FeroxProto>(&content_buf).map_err(|_| Error::PostcardDeserializeError)?;
+    let req = postcard::from_bytes::<FeroxProto>(&recv_data).map_err(|_| {
+        warn!("Failed to deserialize request");
+        Error::PostcardDeserializeError
+    })?;
+    debug!("Deserialized request: {:?}", req);
+
     let resp = handle_request(req).await?;
+    debug!("Processed request, response: {:?}", resp);
 
     let mut buf = [0u8; 256];
-    let resp_bytes = postcard::to_slice(&resp, &mut buf).map_err(|_| Error::PostcardSerializeError)?;
+    let resp_bytes = postcard::to_slice(&resp, &mut buf).map_err(|_| {
+        warn!("Failed to serialize response");
+        Error::PostcardSerializeError
+    })?;
     let resp_size = resp_bytes.len() as u8;
-    tx.write_all(&[resp_size]).await.map_err(|_| Error::WriteError)?;
-    tx.write_all(&resp_bytes).await.map_err(|_| Error::WriteError)?;
+    debug!("Serialized response size: {}", resp_size);
+
+    tx.write_all(&[resp_size]).await.map_err(|_| {
+        warn!("Failed to write response size");
+        Error::WriteError
+    })?;
+    tx.write_all(&resp_bytes).await.map_err(|_| {
+        warn!("Failed to write response bytes");
+        Error::WriteError
+    })?;
+    debug!("Response sent successfully");
 
     Ok(())
 }

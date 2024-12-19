@@ -1,15 +1,16 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
-    BufferOverflow = 1,
+    BufferOverflow,
     DeviceError,
     EchoMismatch,
     FlushError,
     InvalidResponse,
     ReadError,
     WriteError,
+    TimeoutError,
 
     BytesToUTF8Error = 0x1000,
     InvalidBoolean,
@@ -23,6 +24,9 @@ pub enum Error {
 
     // Used by application
     InvalidFirmwareVersion = 0x2000,
+
+    // Command should not be here
+    X86Quit,
 }
 
 #[cfg(not(feature = "full-display"))]
@@ -52,6 +56,8 @@ impl core::fmt::Display for Error {
             Error::PostcardDeserializeError => write!(f, "Postcard deserialize error"),
             Error::UnexpectedFeroxRequest => write!(f, "Unexpected Ferox request"),
             Error::PostcardSerializeError => write!(f, "Postcard serialize error"),
+            Error::TimeoutError => write!(f, "Timeout error"),
+            Error::X86Quit => write!(f, "X86 quit"),
         }
     }
 }

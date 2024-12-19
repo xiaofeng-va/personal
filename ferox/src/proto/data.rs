@@ -6,7 +6,7 @@ use crate::MAX_STRING_SIZE;
 use super::errors::Error;
 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum FeroxProto {
     FeroxRequest(FeroxRequestType),
@@ -14,29 +14,30 @@ pub enum FeroxProto {
     Ctl200Request(Ctl200RequestType),
     Ctl200Response(Ctl200ResponseType),
 
+    Quit,
     Error(Error),
     Unknown,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum FeroxRequestType {
     FeroxPing,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum FeroxResponseType {
     FeroxPong,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Ctl200RequestType {
     Ctl200Version,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub enum Ctl200ResponseType {
     Ctl200Version(String<MAX_STRING_SIZE>),
 }
