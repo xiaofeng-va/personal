@@ -1,0 +1,53 @@
+use heapless::String;
+use serde::{Deserialize, Serialize};
+
+use crate::MAX_STRING_SIZE;
+
+use super::errors::Error;
+
+
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum FeroxProto {
+    FeroxRequest(FeroxRequestType),
+    FeroxResponse(FeroxResponseType),
+    Ctl200Request(Ctl200RequestType),
+    Ctl200Response(Ctl200ResponseType),
+
+    Error(Error),
+    Unknown,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum FeroxRequestType {
+    FeroxPing,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum FeroxResponseType {
+    FeroxPong,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum Ctl200RequestType {
+    Ctl200Version,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum Ctl200ResponseType {
+    Ctl200Version(String<MAX_STRING_SIZE>),
+}
+
+#[cfg(feature = "defmt")]
+impl defmt::Format for Ctl200ResponseType {
+    fn format(&self, f: defmt::Formatter) {
+        match self {
+            Ctl200ResponseType::Ctl200Version(version) => {
+                defmt::write!(f, "Ctl200Version({=str})", version.as_str())
+            }
+        }
+    }
+}
