@@ -1,5 +1,0 @@
-[alias]
-bx = "build --release --example"
-rx = "run --release --example"
-bb = "build --release --bin"
-rb = "run --release --bin"

@@ -22,6 +22,8 @@ bind_interrupts!(struct Irqs {
 });
 
 type CTL200 = Ctl200<BufferedUart<'static, peripherals::UART7>>;
+
+#[allow(non_snake_case)]
 async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
     if ctl200.version().await? != b"V0.17" {
         return Err(Error::InvalidFirmwareVersion);
@@ -277,7 +279,6 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
     {
         let userdata = ctl200.userdata().await?;
         info!("User data is {}", userdata);
-        const MAX_STRING_SIZE: usize = 32;
         let userdata = b"hello";
         ctl200.set_userdata(userdata).await?;
         let userdata2 = ctl200.userdata().await?;
@@ -306,7 +307,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
 }
 
 #[embassy_executor::main]
-async fn main(spawner: Spawner) -> ! {
+async fn main(_spawner: Spawner) -> ! {
     let p = embassy_stm32::init(Default::default());
     info!("CTL200 Example Starting!");
     static mut TX_BUF: [u8; 256] = [0u8; 256];
