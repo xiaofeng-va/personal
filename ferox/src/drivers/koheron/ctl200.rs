@@ -3,10 +3,9 @@ use core::{
     str::{from_utf8, FromStr},
 };
 
+use defmt_or_log::{debug, info};
 use embedded_io_async::{Read, Write};
 use heapless::String;
-
-use crate::{debug, info};
 
 const CRLF: &[u8] = b"\r\n";
 const CRLF_PROMPT: &[u8] = b"\r\n>>";

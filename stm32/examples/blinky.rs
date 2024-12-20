@@ -1,11 +1,11 @@
 #![no_std]
 #![no_main]
 
+use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_stm32::gpio::{Level, Output, Speed};
 use embassy_time::{Duration, Timer};
-use ferox::fmt::info;
 use panic_probe as _;
 
 #[embassy_executor::main]
