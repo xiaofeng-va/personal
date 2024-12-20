@@ -10,6 +10,7 @@ embedded-io-async = "0.6.1"
 heapless = "0.8.0"
 static_cell = "2.1.0"
 
+defmt-or-log = { version = "0.2.1", default-features = false}
 defmt = { version = "0.3.10", optional = true }
 log = { version = "0.4.22", optional = true}
 
@@ -21,13 +22,10 @@ lazy_static = "1.5.0"
 env_logger = "0.11.5"
 
 [features]
-defmt = [ "dep:defmt" ]
-log = [ "dep:log" ]
 full-display = []
 
-default = [ "std" ]
-std = [
-    "full-display",
-    "log"
-]
-embedded = [ "defmt" ]
+defmt = [ "dep:defmt", "defmt-or-log/defmt"  ]
+log = [ "full-display", "dep:log", "defmt-or-log/log" ]
+at_least_one = []
+
+default = [ "at_least_one" ]
