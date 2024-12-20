@@ -1,0 +1,38 @@
+name: STM32H723ZG
+  
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  stm32h723zg-build:
+    name: Build STM32H723ZG Project
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+
+    - name: Add rust-src component
+      run: rustup component add rust-src
+
+    - name: Add target for STM32
+      run: rustup target add thumbv7em-none-eabihf
+      
+    - name: Build project
+      working-directory: ./stm32h723zg
+      run: |
+          cargo build
+          cargo build --examples
+          cargo build --bins
