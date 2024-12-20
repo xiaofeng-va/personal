@@ -1,8 +1,12 @@
-use super::data::FeroxProto;
-use super::data::{FeroxProto::FeroxRequest, FeroxRequestType::FeroxPing};
-use super::data::{Ctl200RequestType::Ctl200Version, FeroxProto::Ctl200Request};
-use super::errors::Result;
-use super::errors::Error;
+use super::{
+    data::{
+        Ctl200RequestType::Ctl200Version,
+        FeroxProto,
+        FeroxProto::{Ctl200Request, FeroxRequest},
+        FeroxRequestType::FeroxPing,
+    },
+    errors::{Error, Result},
+};
 
 pub fn parse_proto(line: &str) -> Result<FeroxProto> {
     let mut tokens = line.split_whitespace();
@@ -10,7 +14,7 @@ pub fn parse_proto(line: &str) -> Result<FeroxProto> {
 }
 
 fn parse_command<'a, I>(tokens: &mut I) -> Result<FeroxProto>
-where 
+where
     I: Iterator<Item = &'a str>,
 {
     match tokens.next() {
@@ -22,7 +26,7 @@ where
 }
 
 fn parse_ferox_command<'a, I>(tokens: &mut I) -> Result<FeroxProto>
-where 
+where
     I: Iterator<Item = &'a str>,
 {
     match tokens.next() {
@@ -32,7 +36,7 @@ where
 }
 
 fn parse_ctl200_command<'a, I>(tokens: &mut I) -> Result<FeroxProto>
-where 
+where
     I: Iterator<Item = &'a str>,
 {
     match tokens.next() {

@@ -6,8 +6,10 @@ use core::{
 use embedded_io_async::{Read, Write};
 use heapless::String;
 
-use crate::{debug, info};
-use crate::proto::errors::{Error, Result};
+use crate::{
+    debug, info,
+    proto::errors::{Error, Result},
+};
 
 const CRLF: &[u8] = b"\r\n";
 const CRLF_PROMPT: &[u8] = b"\r\n>>";
@@ -640,7 +642,6 @@ impl<'a> Display for Value<'a> {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use core::fmt::Write as fmtWrite;
     use std::{collections::HashMap, println, string::String as StdString, sync::Arc, vec::Vec};
 
     use embedded_io_async::{Read, Write};
@@ -662,8 +663,6 @@ mod tests {
 
     #[derive(Debug)]
     enum MockError {
-        ReadError,
-        FlushError,
         WriteError,
     }
 
@@ -762,17 +761,18 @@ mod tests {
     #[tokio::test]
     async fn test_ctl200_get() {
         let mock_stream = MockStream::new();
-        let mut ctl200 = Ctl200::new(mock_stream);
+        let mut ctl200_provider = Ctl200Provider::new(mock_stream);
+        let mut ctl200 = ctl200_provider.get_ctl200();
         let result = ctl200.get::<&[u8]>("version").await.unwrap();
         assert_eq!(result, b"V0.17");
     }
 
     #[tokio::test]
     async fn test_ctl200_set() {
-        let read_data = b"OK\r\n".to_vec();
         let mock_stream: MockStream = MockStream::new();
 
-        let mut ctl200 = Ctl200::new(mock_stream);
+        let mut ctl200_provider = Ctl200Provider::new(mock_stream);
+        let mut ctl200 = ctl200_provider.get_ctl200();
 
         env_logger::builder().is_test(true).try_init().unwrap();
         debug!(">>>Getting lason as false");

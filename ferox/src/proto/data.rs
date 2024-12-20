@@ -1,10 +1,8 @@
-use heapless::{String, Vec};
+use heapless::String;
 use serde::{Deserialize, Serialize};
 
-use crate::MAX_STRING_SIZE;
-
 use super::errors::Error;
-
+use crate::MAX_STRING_SIZE;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
