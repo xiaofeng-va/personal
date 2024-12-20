@@ -25,3 +25,5 @@ Cargo.lock
 
 # Tarpaulin
 tarpaulin-report.html
+
+**/history.txt
