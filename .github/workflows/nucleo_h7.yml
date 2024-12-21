@@ -1,0 +1,38 @@
+name: NUCLEO H7 Prototype Project
+  
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  nucleo_h7-build:
+    name: Build NUCLEO H7 Prototype Project
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout sources
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+
+    - name: Add rust-src component
+      run: rustup component add rust-src
+
+    - name: Add target for STM32
+      run: rustup target add thumbv7em-none-eabihf
+      
+    - name: Build project
+      working-directory: ./nucleo_h7
+      run: |
+          cargo build
+          cargo build --examples
+          cargo build --bins

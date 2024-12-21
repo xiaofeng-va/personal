@@ -23,7 +23,7 @@ jobs:
           inherit-toolchain: true
 
       - name: Generate documentation
-        run: cargo doc --no-deps --all-features
+        run: cargo doc --no-deps --all
 
       - name: Fix index.html
         run: echo "<meta http-equiv=\"refresh\" content=\"0; url=ferox\">" > target/doc/index.html
