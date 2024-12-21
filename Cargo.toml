@@ -4,6 +4,6 @@ members = [
     "ferox",
 ]
 exclude = [
-    "stm32h723zg",
+    "nucleo_h7",
 ]
 resolver = "2"

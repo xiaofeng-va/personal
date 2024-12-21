@@ -1,4 +1,4 @@
-name: STM32H723ZG
+name: NUCLEO H7 Prototype Project
   
 on:
   push:
@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  stm32h723zg-build:
-    name: Build STM32H723ZG Project
+  nucleo_h7-build:
+    name: Build NUCLEO H7 Prototype Project
     runs-on: ubuntu-latest
     steps:
     - name: Checkout sources
@@ -31,7 +31,7 @@ jobs:
       run: rustup target add thumbv7em-none-eabihf
       
     - name: Build project
-      working-directory: ./stm32h723zg
+      working-directory: ./nucleo_h7
       run: |
           cargo build
           cargo build --examples
