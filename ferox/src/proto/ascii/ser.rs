@@ -2,10 +2,7 @@ use defmt_or_log::info;
 use heapless::String;
 use serde::{ser::{SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple, SerializeTupleStruct, SerializeTupleVariant}, Serialize, Serializer};
 
-use crate::proto::error::Error as FeroxError;
-
-use super::MAX_STRING_SIZE;
-
+use crate::{common::MAX_STRING_SIZE, proto::error::Error as FeroxError};
 
 pub struct AsciiSerializer {
     buffer: String<MAX_STRING_SIZE>,

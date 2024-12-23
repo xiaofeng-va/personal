@@ -2,12 +2,10 @@ use deser::AsciiDeserializer;
 use heapless::String;
 use ser::AsciiSerializer;
 use serde::{Deserialize, Serialize};
-use crate::proto::error::Error as FeroxError;
+use crate::{common::MAX_STRING_SIZE, proto::error::Error as FeroxError};
 
 pub mod ser;
 pub mod deser;
-
-const MAX_STRING_SIZE: usize = 128;
 
 pub fn to_string<T>(value: &T) -> Result<String<MAX_STRING_SIZE>, FeroxError>
 where
