@@ -6,12 +6,11 @@ use core::{
 use defmt_or_log::{debug, info};
 use embedded_io_async::{Read, Write};
 use heapless::String;
-use crate::proto::error::Error;
+use crate::{common::MAX_STRING_SIZE, proto::error::Error};
 use crate::proto::Result;
 
 const CRLF: &[u8] = b"\r\n";
 const CRLF_PROMPT: &[u8] = b"\r\n>>";
-const MAX_STRING_SIZE: usize = 64;
 
 // Trait definition with lifetime parameter
 trait FromBytes<'a> {
