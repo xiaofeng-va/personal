@@ -2,6 +2,7 @@ use heapless::String;
 use serde::{Deserialize, Serialize};
 
 use crate::{common::MAX_STRING_SIZE, proto::error::Error as FeroxError};
+use crate::proto::Result as Result;
 
 pub mod deser;
 pub mod ser;
@@ -21,7 +22,7 @@ pub mod vec;
 //     Ok(t)
 // }
 
-pub fn to_string<T>(value: &T) -> Result<String<MAX_STRING_SIZE>, FeroxError>
+pub fn to_string<T>(value: &T) -> Result<String<MAX_STRING_SIZE>>
 where
     T: Serialize,
 {
@@ -34,7 +35,7 @@ where
     Ok(t)
 }
 
-pub fn from_bytes<'de, T>(bytes: &'de [u8]) -> Result<T, deser::AsciiError>
+pub fn from_bytes<'de, T>(bytes: &'de [u8]) -> Result<T>
 where
     T: Deserialize<'de>,
 {

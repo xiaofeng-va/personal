@@ -1,7 +1,6 @@
 use core::fmt;
 
-use serde::{ser, Deserialize, Serialize};
-
+use serde::{de, ser, Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -21,6 +20,12 @@ pub enum Error {
 
     // Used by application
     InvalidFirmwareVersion = 0x2000,
+
+    // (De)Serialization errors
+    EndOfFile,
+    Utf8Error,
+    ParseI8Error,
+    UnexpectedToken,
 
     // There should be no errors after PlaceHolder.
     PlaceHolder = 0xFFFF,
@@ -50,6 +55,10 @@ impl core::fmt::Display for Error {
             Error::BytesToUTF8Error => write!(f, "Bytes to UTF-8 error"),
             Error::ParseIntError => write!(f, "Parse int error"),
             Error::ParseFloatError => write!(f, "Parse float error"),
+            Error::EndOfFile => write!(f, "End of file"),
+            Error::Utf8Error => write!(f, "UTF-8 error"),
+            Error::ParseI8Error => write!(f, "Parse i8 error"),
+            Error::UnexpectedToken => write!(f, "Unexpected token"),
             Error::PlaceHolder => write!(f, "Placeholder error"),
         }
     }
@@ -64,6 +73,16 @@ impl ser::Error for crate::proto::error::Error {
     {
         // TODO(xguo): Define the error code for custom error.
         // crate::proto::error::Error::new(msg.to_string())
+        todo!()
+    }
+}
+
+impl de::Error for Error {
+    fn custom<T>(_msg: T) -> Self
+    where
+        T: fmt::Display,
+    {
+        // TODO(xguo): https://github.com/jamesmunns/postcard/blob/main/source/postcard/src/error.rs#L86
         todo!()
     }
 }
