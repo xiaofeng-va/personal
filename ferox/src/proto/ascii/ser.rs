@@ -362,7 +362,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{proto::ascii::to_string, tests::helpers::init_logger};
+    use crate::{proto::ascii::to_string, testing::helpers::init_logger};
 
     #[derive(Serialize, Deserialize, Debug)]
     enum TestReq<'a> {
