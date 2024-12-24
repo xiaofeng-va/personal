@@ -624,7 +624,7 @@ mod tests {
     use embedded_io_async::{Read, Write};
     use futures::lock::Mutex;
 
-    use crate::tests::helpers::init_logger;
+    use crate::testing::helpers::init_logger;
 
     use super::*;
 

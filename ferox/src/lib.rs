@@ -5,6 +5,6 @@ pub mod drivers;
 pub mod proto;
 
 #[cfg(test)]
-mod tests {
+mod testing {
     pub mod helpers;
 }
