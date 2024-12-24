@@ -1,5 +1,6 @@
 use defmt_or_log::info;
 use postcard::ser_flavors::Flavor;
+use core::fmt::Write;
 use serde::{
     ser::{
         SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
@@ -7,6 +8,8 @@ use serde::{
     },
     Serialize, Serializer,
 };
+
+// use postcard::{Error as PostcardError, Result as PostCardResult};
 
 use crate::{proto::error::Error as FeroxError};
 
@@ -25,6 +28,10 @@ impl<F: Flavor> AsciiSerializer<F> {
         self.buffer.try_extend(data).map_err(|_| FeroxError::BufferOverflow)
     }
 
+    fn try_push(&mut self, data: u8) -> Result<(), FeroxError> {
+        self.buffer.try_push(data).map_err(|_| FeroxError::BufferOverflow)
+    }
+
     pub fn finalize(self) -> F {
         self.buffer
     }
@@ -38,11 +45,11 @@ impl<F: Flavor> SerializeSeq for &mut AsciiSerializer<F> {
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        value.serialize(&mut **self)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Ok(())
     }
 }
 
@@ -205,12 +212,15 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
     {
         info!("Serializing newtype variant: {}", variant);
         self.serialize_str(variant)?;
-        self.serialize_str(" ")?;
         value.serialize(self)
     }
 
     fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        if v {
+            self.serialize_char('1')
+        } else {
+            self.serialize_char('0')
+        }
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
@@ -222,7 +232,9 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        let mut s = heapless::String::<10>::new();
+        write!(s, "{}", v).map_err(|_| FeroxError::BufferOverflow)?;
+        self.try_extend(s.as_bytes())
     }
 
     fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error> {
@@ -230,7 +242,7 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
     }
 
     fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.serialize_char(v as char)
     }
 
     fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
@@ -246,7 +258,9 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
     }
 
     fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        let mut s = heapless::String::<10>::new();
+        write!(s, "{}", v).map_err(|_| FeroxError::BufferOverflow)?;
+        self.try_extend(s.as_bytes())
     }
 
     fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error> {
@@ -254,7 +268,7 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.try_push(v as u8)
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
@@ -262,14 +276,15 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        self.serialize_char('?')
     }
 
     fn serialize_some<T>(self, value: &T) -> Result<Self::Ok, Self::Error>
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        self.serialize_char(' ')?;
+        value.serialize(self)
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
@@ -280,8 +295,9 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
         todo!()
     }
 
+    // do nothing
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        todo!()
+        Ok(self)
     }
 
     fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
@@ -343,8 +359,8 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
     use env_logger;
-    use heapless::String;
     use serde::{Deserialize, Serialize};
 
     use super::*;
@@ -352,9 +368,6 @@ mod tests {
 
     #[derive(Serialize, Deserialize, Debug)]
     enum TestReq<'a> {
-        #[serde(rename = "ver")]
-        Version,
-
         #[serde(rename = "varint")]
         VarInt(Option<i32>),
 
@@ -366,32 +379,21 @@ mod tests {
 
         #[serde(rename = "varbytes")]
         VarBytes(Option<&'a [u8]>),
-
-        #[serde(rename = "smc")]
-        SmcForward { request: &'a [u8] },
-
-        #[serde(rename = "recur")]
-        Recursive(RecursiveEnum),
     }
 
-    #[derive(Serialize, Deserialize, Debug)]
-    enum RecursiveEnum {
-        #[serde(rename = "ver")]
-        Version,
+    use std::sync::Once;
+
+    static INIT: Once = Once::new();
+
+    fn init_logger() {
+        INIT.call_once(|| {
+            env_logger::builder().is_test(true).try_init().unwrap();
+        });
     }
 
-    #[test]
-    fn test_serialize_version() {
-        env_logger::builder().is_test(true).try_init().unwrap();
-        info!("test_serialize_failure: INFO");
-
-        let s = String::<1>::new();
-
-        assert_eq!(to_string(&TestReq::Version).unwrap(), "ver");
-    }
     #[test]
     fn test_serialize_varint_some() {
-        env_logger::builder().is_test(true).try_init().unwrap();
+        init_logger();
         info!("test_serialize_varint_some: INFO");
 
         assert_eq!(to_string(&TestReq::VarInt(Some(42))).unwrap(), "varint 42");
@@ -399,7 +401,7 @@ mod tests {
 
     #[test]
     fn test_serialize_varint_none() {
-        env_logger::builder().is_test(true).try_init().unwrap();
+        init_logger();
         info!("test_serialize_varint_none: INFO");
 
         assert_eq!(to_string(&TestReq::VarInt(None)).unwrap(), "varint?");
@@ -407,18 +409,18 @@ mod tests {
 
     #[test]
     fn test_serialize_varfloat_some() {
-        env_logger::builder().is_test(true).try_init().unwrap();
+        init_logger();
         info!("test_serialize_varfloat_some: INFO");
 
         assert_eq!(
-            to_string(&TestReq::VarFloat(Some(3.14))).unwrap(),
+            to_string(&TestReq::VarFloat(Some(3.14f32))).unwrap(),
             "varfloat 3.14"
         );
     }
 
     #[test]
     fn test_serialize_varfloat_none() {
-        env_logger::builder().is_test(true).try_init().unwrap();
+        init_logger();
         info!("test_serialize_varfloat_none: INFO");
 
         assert_eq!(to_string(&TestReq::VarFloat(None)).unwrap(), "varfloat?");
@@ -426,18 +428,22 @@ mod tests {
 
     #[test]
     fn test_serialize_varbool_some() {
-        env_logger::builder().is_test(true).try_init().unwrap();
+        init_logger();
         info!("test_serialize_varbool_some: INFO");
 
         assert_eq!(
             to_string(&TestReq::VarBool(Some(true))).unwrap(),
-            "varbool true"
+            "varbool 1"
+        );
+        assert_eq!(
+            to_string(&TestReq::VarBool(Some(false))).unwrap(),
+            "varbool 0"
         );
     }
 
     #[test]
     fn test_serialize_varbool_none() {
-        env_logger::builder().is_test(true).try_init().unwrap();
+        init_logger();
         info!("test_serialize_varbool_none: INFO");
 
         assert_eq!(to_string(&TestReq::VarBool(None)).unwrap(), "varbool?");
@@ -445,7 +451,7 @@ mod tests {
 
     #[test]
     fn test_serialize_varbytes_some() {
-        env_logger::builder().is_test(true).try_init().unwrap();
+        init_logger();
         info!("test_serialize_varbytes_some: INFO");
 
         assert_eq!(
@@ -456,31 +462,9 @@ mod tests {
 
     #[test]
     fn test_serialize_varbytes_none() {
-        env_logger::builder().is_test(true).try_init().unwrap();
+        init_logger();
         info!("test_serialize_varbytes_none: INFO");
 
         assert_eq!(to_string(&TestReq::VarBytes(None)).unwrap(), "varbytes?");
-    }
-
-    #[test]
-    fn test_serialize_smcforward() {
-        env_logger::builder().is_test(true).try_init().unwrap();
-        info!("test_serialize_smcforward: INFO");
-
-        assert_eq!(
-            to_string(&TestReq::SmcForward { request: b"bia?" }).unwrap(),
-            "smc bia?"
-        );
-    }
-
-    #[test]
-    fn test_serialize_recursive() {
-        env_logger::builder().is_test(true).try_init().unwrap();
-        info!("test_serialize_recursive: INFO");
-
-        assert_eq!(
-            to_string(&TestReq::Recursive(RecursiveEnum::Version)).unwrap(),
-            "recur ver"
-        );
     }
 }

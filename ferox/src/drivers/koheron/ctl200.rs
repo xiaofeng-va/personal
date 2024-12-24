@@ -619,7 +619,6 @@ impl<'a> Display for Value<'a> {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use core::fmt::Write as fmtWrite;
     use std::{collections::HashMap, println, string::String as StdString, sync::Arc, vec::Vec};
 
     use embedded_io_async::{Read, Write};
@@ -641,8 +640,6 @@ mod tests {
 
     #[derive(Debug)]
     enum MockError {
-        ReadError,
-        FlushError,
         WriteError,
     }
 
@@ -748,7 +745,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_ctl200_set() {
-        let read_data = b"OK\r\n".to_vec();
         let mock_stream: MockStream = MockStream::new();
 
         let mut ctl200 = Ctl200::new(mock_stream);

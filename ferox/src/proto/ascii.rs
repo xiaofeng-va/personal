@@ -1,5 +1,5 @@
 use deser::AsciiDeserializer;
-use heapless::{String, Vec};
+use heapless::String;
 use ser::AsciiSerializer;
 use serde::{Deserialize, Serialize};
 
@@ -7,8 +7,8 @@ use crate::{common::MAX_STRING_SIZE, proto::error::Error as FeroxError};
 
 pub mod deser;
 pub mod ser;
-pub mod vec;
 pub mod str;
+pub mod vec;
 
 // pub fn to_string<T>(value: &T) -> Result<Vec<u8, MAX_STRING_SIZE>, FeroxError>
 // where
