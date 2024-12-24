@@ -359,12 +359,10 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
 
 #[cfg(test)]
 mod tests {
-    extern crate std;
-    use env_logger;
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::proto::ascii::to_string;
+    use crate::{proto::ascii::to_string, tests::helpers::init_logger};
 
     #[derive(Serialize, Deserialize, Debug)]
     enum TestReq<'a> {
@@ -379,16 +377,6 @@ mod tests {
 
         #[serde(rename = "varbytes")]
         VarBytes(Option<&'a [u8]>),
-    }
-
-    use std::sync::Once;
-
-    static INIT: Once = Once::new();
-
-    fn init_logger() {
-        INIT.call_once(|| {
-            env_logger::builder().is_test(true).try_init().unwrap();
-        });
     }
 
     #[test]

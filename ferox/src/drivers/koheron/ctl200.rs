@@ -624,6 +624,8 @@ mod tests {
     use embedded_io_async::{Read, Write};
     use futures::lock::Mutex;
 
+    use crate::tests::helpers::init_logger;
+
     use super::*;
 
     const UNKNOWN_COMMAND: &[u8] = b"Unknown command";
@@ -745,11 +747,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_ctl200_set() {
+        init_logger();
         let mock_stream: MockStream = MockStream::new();
-
         let mut ctl200 = Ctl200::new(mock_stream);
-
-        env_logger::builder().is_test(true).try_init().unwrap();
         debug!(">>>Getting lason as false");
         let t = ctl200.get::<bool>("lason").await.unwrap();
         debug!("test_ctl200_set(): lason: {}", t);
