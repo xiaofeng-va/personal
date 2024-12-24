@@ -1,58 +1,10 @@
-use core::fmt;
-
+use defmt_or_log::debug;
 use serde::de::{
-    self, Deserialize, DeserializeSeed, Deserializer, EnumAccess, IntoDeserializer, Unexpected,
-    VariantAccess, Visitor,
+    DeserializeSeed, Deserializer, EnumAccess, IntoDeserializer, VariantAccess, Visitor,
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// Custom error type (no_std friendly)
-////////////////////////////////////////////////////////////////////////////////
+use crate::proto::{error::Error as FeroxError, Result};
 
-#[derive(Debug)]
-pub struct AsciiError {
-    msg: &'static str,
-}
-
-impl AsciiError {
-    pub fn new(msg: &'static str) -> Self {
-        AsciiError { msg }
-    }
-}
-
-impl fmt::Display for AsciiError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "AsciiError: {}", self.msg)
-    }
-}
-
-// In no_std environment, we cannot implement std::error::Error; only satisfy serde::de::Error.
-impl de::Error for AsciiError {
-    fn custom<T: fmt::Display>(_: T) -> Self {
-        // In no_std mode, we can't easily convert any fmt::Display into String.
-        // We choose to write a fixed message or do more complicated handling.
-        AsciiError::new("custom error")
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Deserialization entry point
-////////////////////////////////////////////////////////////////////////////////
-
-pub fn from_bytes<'de, T>(bytes: &'de [u8]) -> Result<T, AsciiError>
-where
-    T: Deserialize<'de>,
-{
-    let mut de = AsciiDeserializer::new(bytes);
-    let t = T::deserialize(&mut de)?;
-    Ok(t)
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Custom Deserializer
-////////////////////////////////////////////////////////////////////////////////
-
-/// A deserializer that uses an index to traverse `input`
 pub struct AsciiDeserializer<'de> {
     input: &'de [u8],
     index: usize,
@@ -63,269 +15,243 @@ impl<'de> AsciiDeserializer<'de> {
         AsciiDeserializer { input, index: 0 }
     }
 
-    /// Skip all whitespace characters
     fn skip_whitespace(&mut self) {
         while self.index < self.input.len() && is_whitespace(self.input[self.index]) {
             self.index += 1;
         }
     }
-    /// Consume all remaining bytes and return them as a slice
-    fn take_remaining(&mut self) -> &'de [u8] {
+
+    fn take_remaining(&mut self) -> Option<&'de [u8]> {
+        self.skip_whitespace();
+        if self.index >= self.input.len() {
+            return None;
+        }
         let remaining = &self.input[self.index..];
-        self.index = self.input.len(); // Move index to the end
-        remaining
+        self.index = self.input.len();
+        Some(remaining)
     }
 
-    /// Read the next token (separated by whitespace). Returns `Some(&[u8])` slice; if no more data, returns `None`
     fn next_token(&mut self) -> Option<&'de [u8]> {
         self.skip_whitespace();
         if self.index >= self.input.len() {
             return None;
         }
+
         let start = self.index;
 
-        // Find whitespace or end
-        while self.index < self.input.len() && !is_whitespace(self.input[self.index]) {
+        while self.index < self.input.len() {
+            let current = self.input[self.index];
+
+            if is_whitespace(current) || current == b'?' {
+                break;
+            }
+
             self.index += 1;
         }
-        let end = self.index; // end points to whitespace or EOF
 
-        Some(&self.input[start..end])
+        if self.index < self.input.len() && self.input[self.index] == b'?' {
+            if start == self.index {
+                self.index += 1;
+                return Some(&self.input[start..self.index]);
+            } else {
+                return Some(&self.input[start..self.index]);
+            }
+        }
+
+        Some(&self.input[start..self.index])
     }
 
-    /// Method for peeking the next token (without consuming it)
     fn peek_token(&mut self) -> Option<&'de [u8]> {
         let saved = self.index;
         let t = self.next_token();
-        // revert index after reading
         self.index = saved;
         t
     }
 }
 
-/// Helper function: determine if `b` is a whitespace character
 fn is_whitespace(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\r' | b'\n')
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Implement the `serde::Deserializer` trait
-////////////////////////////////////////////////////////////////////////////////
-
 impl<'de, 'a> Deserializer<'de> for &'a mut AsciiDeserializer<'de> {
-    type Error = AsciiError;
+    type Error = FeroxError;
 
-    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        // Not needed in this example
-        Err(de::Error::custom("deserialize_any not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        // Read one token; if "1" => true, if "0" => false, otherwise error
-        let token = self.next_token().ok_or_else(|| AsciiError::new("EOF"))?;
+        let token = self.next_token().ok_or(FeroxError::EndOfFile)?;
         match token {
             b"1" => visitor.visit_bool(true),
             b"0" => visitor.visit_bool(false),
-            _ => Err(de::Error::invalid_value(
-                Unexpected::Bytes(token),
-                &"expected '0' or '1'",
-            )),
+            _ => Err(FeroxError::InvalidBoolean),
         }
     }
 
-    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        let token = self.next_token().ok_or_else(|| AsciiError::new("EOF"))?;
-        let s = core::str::from_utf8(token).map_err(|_| AsciiError::new("UTF-8 error"))?;
-        let parsed = s
-            .parse::<i8>()
-            .map_err(|_| AsciiError::new("parse i8 error"))?;
-        visitor.visit_i8(parsed)
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        let token = self.next_token().ok_or_else(|| AsciiError::new("EOF"))?;
-        let s = core::str::from_utf8(token).map_err(|_| AsciiError::new("UTF-8 error"))?;
-        let parsed = s
-            .parse::<i16>()
-            .map_err(|_| AsciiError::new("parse i16 error"))?;
-        visitor.visit_i16(parsed)
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        let token = self.next_token().ok_or_else(|| AsciiError::new("EOF"))?;
-        let s = core::str::from_utf8(token).map_err(|_| AsciiError::new("UTF-8 error"))?;
-        let parsed = s
-            .parse::<i32>()
-            .map_err(|_| AsciiError::new("parse i32 error"))?;
+        let token = self.next_token().ok_or(FeroxError::EndOfFile)?;
+        let s = core::str::from_utf8(token).map_err(|_| FeroxError::Utf8Error)?;
+        let parsed = s.parse::<i32>().map_err(|_| FeroxError::ParseIntError)?;
         visitor.visit_i32(parsed)
     }
 
-    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        let token = self.next_token().ok_or_else(|| AsciiError::new("EOF"))?;
-        let s = core::str::from_utf8(token).map_err(|_| AsciiError::new("UTF-8 error"))?;
-        let parsed = s
-            .parse::<i64>()
-            .map_err(|_| AsciiError::new("parse i64 error"))?;
-        visitor.visit_i64(parsed)
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_u8<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_u8<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("u8 not supported"))
-    }
-    fn deserialize_u16<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        Err(de::Error::custom("u16 not supported"))
-    }
-    fn deserialize_u32<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        Err(de::Error::custom("u32 not supported"))
-    }
-    fn deserialize_u64<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
-    where
-        V: Visitor<'de>,
-    {
-        Err(de::Error::custom("u64 not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_u16<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        let token = self.next_token().ok_or_else(|| AsciiError::new("EOF"))?;
-        let s = core::str::from_utf8(token).map_err(|_| AsciiError::new("UTF-8 error"))?;
-        let parsed = s
-            .parse::<f32>()
-            .map_err(|_| AsciiError::new("parse f32 error"))?;
+        Err(FeroxError::UnexpectedToken)
+    }
+
+    fn deserialize_u32<V>(self, _visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        Err(FeroxError::UnexpectedToken)
+    }
+
+    fn deserialize_u64<V>(self, _visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        Err(FeroxError::UnexpectedToken)
+    }
+
+    fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value>
+    where
+        V: Visitor<'de>,
+    {
+        let token = self.next_token().ok_or(FeroxError::EndOfFile)?;
+        let s = core::str::from_utf8(token).map_err(|_| FeroxError::Utf8Error)?;
+        let parsed = s.parse::<f32>().map_err(|_| FeroxError::ParseFloatError)?;
         visitor.visit_f32(parsed)
     }
 
-    fn deserialize_f64<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_f64<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("f64 not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("char not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_str<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_str<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_string<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_string<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        // Consume all remaining bytes and return them as a slice
-        let remaining = self.take_remaining();
-        visitor.visit_borrowed_bytes(remaining)
+        visitor.visit_borrowed_bytes(self.take_remaining().ok_or(FeroxError::EndOfFile)?)
     }
 
-    fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        todo!()
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        // If the next token is "?", return None; otherwise Some(...)
         if let Some(token) = self.peek_token() {
             if token == b"?" {
-                // consume it
-                self.next_token();
+                self.next_token(); // consume it
                 return visitor.visit_none();
             }
         }
-        visitor.visit_some(self)
+        visitor.visit_some(&mut *self)
     }
 
-    fn deserialize_unit<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_unit<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("unit not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_unit_struct<V>(
-        self,
-        _name: &'static str,
-        _visitor: V,
-    ) -> Result<V::Value, Self::Error>
+    fn deserialize_unit_struct<V>(self, _name: &'static str, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("deserialize_unit_struct not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_newtype_struct<V>(
-        self,
-        _name: &'static str,
-        _visitor: V,
-    ) -> Result<V::Value, Self::Error>
+    fn deserialize_newtype_struct<V>(self, _name: &'static str, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom(
-            "deserialize_newtype_struct not supported",
-        ))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_seq<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_seq<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("deserialize_seq not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_tuple<V>(self, _len: usize, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_tuple<V>(self, _len: usize, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("deserialize_tuple not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
     fn deserialize_tuple_struct<V>(
@@ -333,18 +259,18 @@ impl<'de, 'a> Deserializer<'de> for &'a mut AsciiDeserializer<'de> {
         _name: &'static str,
         _len: usize,
         _visitor: V,
-    ) -> Result<V::Value, Self::Error>
+    ) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("deserialize_tuple_struct not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_map<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_map<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("deserialize_map not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
     fn deserialize_struct<V>(
@@ -352,68 +278,64 @@ impl<'de, 'a> Deserializer<'de> for &'a mut AsciiDeserializer<'de> {
         _name: &'static str,
         _fields: &'static [&'static str],
         _visitor: V,
-    ) -> Result<V::Value, Self::Error>
+    ) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        // Not used in this example
-        Err(de::Error::custom("deserialize_struct not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_identifier<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_identifier<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("deserialize_identifier not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    /// Key point: parse enums (e.g. `varint 42` or `varint?`).
     fn deserialize_enum<V>(
         self,
         _name: &'static str,
         _variants: &'static [&'static str],
         visitor: V,
-    ) -> Result<V::Value, Self::Error>
+    ) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        // Take the next token as the "variant name"
-        let variant_name = self.next_token().ok_or_else(|| AsciiError::new("EOF"))?;
+        let variant_name = self.next_token().ok_or(FeroxError::EndOfFile)?;
+        debug!(
+            "Deserializing enum variant: {:?}",
+            core::str::from_utf8(variant_name).unwrap_or("<invalid utf8>")
+        );
         visitor.visit_enum(EnumRef {
             de: self,
             variant_name,
         })
     }
 
-    fn deserialize_ignored_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_ignored_any<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("deserialize_ignored_any not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// EnumAccess / VariantAccess implementations
-////////////////////////////////////////////////////////////////////////////////
 
-/// Temporary structure for `visit_enum`
 struct EnumRef<'a, 'de: 'a> {
     de: &'a mut AsciiDeserializer<'de>,
     variant_name: &'de [u8],
 }
 
 impl<'de, 'a> EnumAccess<'de> for EnumRef<'a, 'de> {
-    type Error = AsciiError;
+    type Error = FeroxError;
     type Variant = VariantRef<'a, 'de>;
 
-    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant)>
     where
         V: DeserializeSeed<'de>,
     {
-        // Convert variant_name into &str for deserialization
-        let s = core::str::from_utf8(self.variant_name)
-            .map_err(|_| AsciiError::new("UTF-8 error in variant"))?;
+        let s = core::str::from_utf8(self.variant_name).map_err(|_| FeroxError::Utf8Error)?;
+        debug!("Deserializing variant name: {:?}", s);
         let v = seed.deserialize(s.into_deserializer())?;
         Ok((v, VariantRef { de: self.de }))
     }
@@ -424,36 +346,31 @@ struct VariantRef<'a, 'de: 'a> {
 }
 
 impl<'de, 'a> VariantAccess<'de> for VariantRef<'a, 'de> {
-    type Error = AsciiError;
+    type Error = FeroxError;
 
-    fn unit_variant(self) -> Result<(), Self::Error> {
-        Err(de::Error::custom("unit_variant not supported"))
+    fn unit_variant(self) -> Result<()> {
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
     where
         T: DeserializeSeed<'de>,
     {
-        // For example, `varint Some(42)` will parse an Option and then an i32
-        seed.deserialize(&mut *self.de)
+        seed.deserialize(self.de)
     }
 
-    fn tuple_variant<V>(self, _len: usize, _visitor: V) -> Result<V::Value, Self::Error>
+    fn tuple_variant<V>(self, _len: usize, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("tuple_variant not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 
-    fn struct_variant<V>(
-        self,
-        _fields: &'static [&'static str],
-        _visitor: V,
-    ) -> Result<V::Value, Self::Error>
+    fn struct_variant<V>(self, _fields: &'static [&'static str], _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(de::Error::custom("struct_variant not supported"))
+        Err(FeroxError::UnexpectedToken)
     }
 }
 
@@ -463,7 +380,7 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::testing::helpers::init_logger;
+    use crate::{proto::ascii::from_bytes, testing::helpers::init_logger};
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
     enum TestReq<'a> {
@@ -553,5 +470,19 @@ mod tests {
 
         let deserialized: TestReq = from_bytes(b"varbytes?").unwrap();
         assert_eq!(deserialized, TestReq::VarBytes(None));
+    }
+
+    #[test]
+    fn test_next_token() {
+        let input = b"varbool? varint 42 varfloat?";
+        let mut deserializer = AsciiDeserializer::new(input);
+
+        assert_eq!(deserializer.next_token(), Some(&b"varbool"[..])); // First token
+        assert_eq!(deserializer.next_token(), Some(&b"?"[..])); // Special character `?`
+        assert_eq!(deserializer.next_token(), Some(&b"varint"[..])); // Next token
+        assert_eq!(deserializer.next_token(), Some(&b"42"[..])); // Next token
+        assert_eq!(deserializer.next_token(), Some(&b"varfloat"[..])); // Next token
+        assert_eq!(deserializer.next_token(), Some(&b"?"[..])); // Special character `?`
+        assert_eq!(deserializer.next_token(), None); // End of input
     }
 }
