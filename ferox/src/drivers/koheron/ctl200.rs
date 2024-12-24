@@ -384,7 +384,7 @@ where
     }
 
     // TODO(xguo): 128 isn't enough for board status. Let's find other ways to handle this.
-    /// Returns a summary of the board status.
+    // /// Returns a summary of the board status.
     // pub async fn board_status(&mut self) -> Result<BoardStatus> {
     //     let status = self.get::<BoardStatus>("status").await?;
     //     debug!("status: {:?}", status);
@@ -603,7 +603,7 @@ pub enum Value<'a> {
     None,
 }
 
-impl<'a> Display for Value<'a> {
+impl Display for Value<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Bool(b) => write!(f, "{}", if *b { "1" } else { "0" }),
@@ -670,7 +670,6 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use core::fmt::Write as fmtWrite;
     use std::{collections::HashMap, println, string::String as StdString, sync::Arc, vec::Vec};
 
     use embedded_io_async::{Read, Write};
@@ -692,8 +691,8 @@ mod tests {
 
     #[derive(Debug)]
     enum MockError {
-        ReadError,
-        FlushError,
+        // ReadError,
+        // FlushError,
         WriteError,
     }
 
@@ -799,7 +798,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_ctl200_set() {
-        let read_data = b"OK\r\n".to_vec();
         let mock_stream: MockStream = MockStream::new();
 
         let mut ctl200 = Ctl200::new(mock_stream);
@@ -808,10 +806,10 @@ mod tests {
         debug!(">>>Getting lason as false");
         let t = ctl200.get::<bool>("lason").await.unwrap();
         debug!("test_ctl200_set(): lason: {}", t);
-        assert_eq!(t, false);
+        assert!(!t);
         debug!(">>>Setting lason to true");
         ctl200.set("lason", Value::Bool(true)).await.unwrap();
         debug!(">>>Getting lason as true");
-        assert_eq!(ctl200.get::<bool>("lason").await.unwrap(), true);
+        assert!(ctl200.get::<bool>("lason").await.unwrap());
     }
 }
