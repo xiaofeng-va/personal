@@ -344,6 +344,7 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
 #[cfg(test)]
 mod tests {
     use env_logger;
+    use heapless::String;
     use serde::{Deserialize, Serialize};
 
     use super::*;
@@ -383,6 +384,8 @@ mod tests {
     fn test_serialize_version() {
         env_logger::builder().is_test(true).try_init().unwrap();
         info!("test_serialize_failure: INFO");
+
+        let s = String::<1>::new();
 
         assert_eq!(to_string(&TestReq::Version).unwrap(), "ver");
     }
