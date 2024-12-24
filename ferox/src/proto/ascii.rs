@@ -1,6 +1,4 @@
-use deser::AsciiDeserializer;
 use heapless::String;
-use ser::AsciiSerializer;
 use serde::{Deserialize, Serialize};
 
 use crate::{common::MAX_STRING_SIZE, proto::error::Error as FeroxError};
@@ -27,7 +25,7 @@ pub fn to_string<T>(value: &T) -> Result<String<MAX_STRING_SIZE>, FeroxError>
 where
     T: Serialize,
 {
-    let mut serializer = AsciiSerializer::new(str::FeroxString::<MAX_STRING_SIZE>::new());
+    let mut serializer = ser::AsciiSerializer::new(str::FeroxString::<MAX_STRING_SIZE>::new());
     value.serialize(&mut serializer)?;
     let t = serializer
         .finalize()
@@ -36,10 +34,11 @@ where
     Ok(t)
 }
 
-pub fn from_str<'a, T>(input: &'a str) -> Result<T, serde::de::value::Error>
+pub fn from_bytes<'de, T>(bytes: &'de [u8]) -> Result<T, deser::AsciiError>
 where
-    T: Deserialize<'a>,
+    T: Deserialize<'de>,
 {
-    let deserializer = AsciiDeserializer::new(input);
-    T::deserialize(deserializer)
+    let mut de = deser::AsciiDeserializer::new(bytes);
+    let t = T::deserialize(&mut de)?;
+    Ok(t)
 }

@@ -11,7 +11,7 @@ use embassy_stm32::{
     usart::{self, BufferedUart, Config},
 };
 use embassy_time::Timer;
-use ferox::drivers::koheron::ctl200::{Ctl200, Error};
+use ferox::{drivers::koheron::ctl200::Ctl200, proto::error::Error};
 use num_traits::float::FloatCore;
 use panic_halt as _;
 
