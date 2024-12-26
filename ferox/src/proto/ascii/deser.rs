@@ -1,4 +1,4 @@
-use defmt_or_log::debug;
+use defmt_or_log::{debug, Display2Format};
 use serde::de::{
     DeserializeSeed, Deserializer, EnumAccess, IntoDeserializer, VariantAccess, Visitor,
 };
@@ -337,26 +337,38 @@ impl<'de, 'a> EnumAccess<'de> for EnumRef<'a, 'de> {
         let s = core::str::from_utf8(self.variant_name).map_err(|_| FeroxError::Utf8Error)?;
         debug!("Deserializing variant name: {:?}", s);
         let v = seed.deserialize(s.into_deserializer())?;
-        Ok((v, VariantRef { de: self.de }))
+        // 检查是否还有更多的输入
+        let has_value = self.de.peek_token().is_some();
+        Ok((v, VariantRef { 
+            de: self.de,
+            has_value 
+        }))
     }
 }
 
 struct VariantRef<'a, 'de: 'a> {
     de: &'a mut AsciiDeserializer<'de>,
+    has_value: bool,
 }
 
 impl<'de, 'a> VariantAccess<'de> for VariantRef<'a, 'de> {
     type Error = FeroxError;
 
     fn unit_variant(self) -> Result<()> {
-        Err(FeroxError::UnexpectedToken)
+        if self.has_value {
+            return Err(FeroxError::UnexpectedToken);
+        }
+        Ok(())
     }
 
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value>
     where
         T: DeserializeSeed<'de>,
     {
-        seed.deserialize(self.de)
+        if !self.has_value {
+            return Err(FeroxError::UnexpectedToken);
+        }
+        seed.deserialize(&mut *self.de)
     }
 
     fn tuple_variant<V>(self, _len: usize, _visitor: V) -> Result<V::Value>
@@ -376,11 +388,11 @@ impl<'de, 'a> VariantAccess<'de> for VariantRef<'a, 'de> {
 
 #[cfg(test)]
 mod tests {
-    use defmt_or_log::info;
     use serde::{Deserialize, Serialize};
 
     use super::*;
     use crate::{proto::ascii::from_bytes, testing::helpers::init_logger};
+    use crate::proto::error::Error;
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
     enum TestReq<'a> {
@@ -395,6 +407,22 @@ mod tests {
 
         #[serde(rename = "varbytes")]
         VarBytes(Option<&'a [u8]>),
+
+        #[serde(rename = "varbytes2")]
+        VarBytes2,
+    }
+
+    #[test]
+    fn test_deserialize_unknown_command() {
+        init_logger();
+        assert_eq!(Error::InvalidRequestForDeserialize, from_bytes::<TestReq>(b"abc").unwrap_err());
+    }
+
+    #[test]
+    fn test_deserialize_varbytes2() {
+        init_logger();
+        let deserialized: TestReq = from_bytes(b"varbytes2").unwrap();
+        assert_eq!(deserialized, TestReq::VarBytes2);
     }
 
     #[test]

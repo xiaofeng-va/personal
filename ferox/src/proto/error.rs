@@ -30,6 +30,9 @@ pub enum Error {
 
     // Ferox Request related
     InvalidRequest,
+    InvalidRequestForDeserialize,
+
+    UartRequestTimeout,
 
     // There should be no errors after PlaceHolder.
     PlaceHolder = 0xFFFF,
@@ -63,7 +66,9 @@ impl core::fmt::Display for Error {
             Error::Utf8Error => write!(f, "UTF-8 error"),
             Error::ParseI8Error => write!(f, "Parse i8 error"),
             Error::UnexpectedToken => write!(f, "Unexpected token"),
+            Error::InvalidRequest => write!(f, "Invalid request"),
             Error::PlaceHolder => write!(f, "Placeholder error"),
+            Error::InvalidRequestForDeserialize => write!(f, "Invalid request for deserialize"),
         }
     }
 }
@@ -86,7 +91,6 @@ impl de::Error for Error {
     where
         T: fmt::Display,
     {
-        // TODO(xguo): https://github.com/jamesmunns/postcard/blob/main/source/postcard/src/error.rs#L86
-        todo!()
+        Error::InvalidRequestForDeserialize
     }
 }
