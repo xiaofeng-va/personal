@@ -1,18 +1,18 @@
 #![no_std]
 #![no_main]
 
-use {defmt_rtt as _, panic_probe as _};
-
 use core::cmp::min;
-use defmt::{expect, info};
-use embassy_stm32::peripherals::{UART4, UART5, UART7};
-use embassy_stm32::usart::{
-    BufferedUart, BufferedUartRx, BufferedUartTx, Config, Uart,
-};
-use embassy_stm32::{bind_interrupts, peripherals, usart};
-use embassy_time::{Duration, Timer};
 
+use defmt::{debug, expect, info};
+use defmt_rtt as _;
 use embassy_executor::Spawner;
+use embassy_stm32::{
+    bind_interrupts, peripherals,
+    peripherals::{UART4, UART5, UART7},
+    usart,
+    usart::{BufferedUart, BufferedUartRx, BufferedUartTx, Config, Uart},
+};
+use embassy_time::{Duration, Timer};
 use embedded_io_async::{Read, Write};
 use ferox::proto::{
     ascii::{from_bytes, to_string},
@@ -21,6 +21,7 @@ use ferox::proto::{
     Result,
 };
 use heapless::{String, Vec};
+use panic_probe as _;
 
 bind_interrupts!(struct Irqs4 {
     UART4 => usart::BufferedInterruptHandler<peripherals::UART4>;
@@ -41,8 +42,11 @@ pub const MAX_STRING_SIZE: usize = 256;
 pub const CMD_PROMPT: &[u8] = b"\r\n";
 
 // 结束符举例
-pub const CTL200_END: &[u8] = b"\r\n<<";
-pub const SMC_END: &[u8] = b"\r\n\r\n";
+pub const CTL200_END: &[u8] = b"\r\n>>";
+pub const SMC_END: &[u8] = b"\n\r\n";
+
+const MAX_RETRIES: i32 = 3;
+const DEFAULT_TIMEOUT: Duration = Duration::from_millis(3_000);
 
 // TODO(xguo): test the function.
 async fn read_until<R: Read>(reader: &mut R, buf: &mut [u8], terminator: &[u8]) -> Result<usize> {
@@ -53,11 +57,14 @@ async fn read_until<R: Read>(reader: &mut R, buf: &mut [u8], terminator: &[u8]) 
 
     while pos + terminator.len() <= buf.len() {
         let chunk_size = min(TEMP_SIZE, buf_len - pos);
-        let sz = reader.read(&mut temp[..chunk_size]).await.map_err(|_| Error::ReadError)?;
+        let sz = reader
+            .read(&mut temp[..chunk_size])
+            .await
+            .map_err(|_| Error::ReadError)?;
         if sz == 0 {
             return Err(Error::ReadError);
         }
-
+        debug!("Read {} bytes: {:?}", sz, core::str::from_utf8(&temp[..sz]).unwrap_or("<invalid utf8>"));
         // 拷贝到 buf
         buf[pos..pos + sz].copy_from_slice(&temp[..sz]);
         pos += sz;
@@ -86,14 +93,53 @@ where
         Self { uart }
     }
 
+    async fn try_once(
+        &mut self,
+        request: &str,
+        response_buf: &mut [u8],
+        terminator: &[u8],
+        timeout: Duration,
+    ) -> Result<usize> {
+        self.uart
+            .write_all(request.as_bytes())
+            .await
+            .map_err(|_| Error::WriteError)?;
+        self.uart
+            .write_all(b"\r\n")
+            .await
+            .map_err(|_| Error::WriteError)?;
+        self.uart.flush().await.map_err(|_| Error::FlushError)?;
+
+        embassy_time::with_timeout(
+            timeout,
+            read_until(&mut self.uart, response_buf, terminator),
+        )
+        .await
+        .map_err(|_| Error::UartRequestTimeout)?
+    }
+
     pub async fn query_with_pattern(
         &mut self,
         request: &str,
         terminator: &[u8],
         response_buf: &'_ mut [u8],
+        timeout: Duration,
+        max_retries: i32,
     ) -> Result<usize> {
-        self.write_line(request).await?;
-        read_until(&mut self.uart, response_buf, terminator).await
+        let mut attempt = 0;
+        while attempt < max_retries {
+            match self.try_once(request, response_buf, terminator, timeout).await {
+                Ok(size) => return Ok(size),
+                Err(e) => {
+                    debug!("Error during attempt {}: {:?}", attempt + 1, e);
+                    attempt += 1;
+                    if attempt >= max_retries {
+                        return Err(e);
+                    }
+                }
+            }
+        }
+        Err(Error::UartRequestTimeout)
     }
 
     async fn write_line(&mut self, line: &str) -> Result<()> {
@@ -134,23 +180,41 @@ where
     }
 
     async fn handle_all_versions(&mut self) -> Result<()> {
+        info!("Handling AllVersions request");
         let ctl200_req_str = to_string(&Ctl200Request::Version).map_err(|_| Error::WriteError)?;
         let smc_req_str = to_string(&SmcRequest::Version(None)).map_err(|_| Error::WriteError)?;
 
         // 1. Send to ctl200
         let mut response_buf = [0u8; MAX_STRING_SIZE];
+        debug!(
+            "Querying CTL200 version with request: {:?}",
+            ctl200_req_str.as_str()
+        );
         let ctl_resp_size = self
             .ctl200
-            .query_with_pattern(&ctl200_req_str, CTL200_END, &mut response_buf)
+            .query_with_pattern(&ctl200_req_str, CTL200_END, &mut response_buf, DEFAULT_TIMEOUT, MAX_RETRIES)
             .await?;
-        let ctl200_ver =
-            from_bytes::<&[u8]>(&response_buf[..ctl_resp_size]).map_err(|_| Error::InvalidResponse)?;
+        let ctl200_ver = from_bytes::<&[u8]>(&response_buf[..ctl_resp_size])
+            .map_err(|_| Error::InvalidResponse)?;
+        debug!(
+            "CTL200 version response: {:?}",
+            core::str::from_utf8(ctl200_ver).unwrap_or("<invalid>")
+        );
 
         // 2. Send to SMC.
         // TODO(xguo): You can use async-std::future::join() to send them concurrently.
         let mut smc_response_buf = [0u8; MAX_STRING_SIZE];
-        let smc_resp_size = self.smc.query_with_pattern(&smc_req_str, SMC_END, &mut smc_response_buf).await?;
-        let smc_ver = from_bytes::<&[u8]>(&smc_response_buf[..smc_resp_size]).map_err(|_| Error::InvalidResponse)?;
+        debug!("Querying SMC version");
+        let smc_resp_size = self
+            .smc
+            .query_with_pattern(&smc_req_str, SMC_END, &mut smc_response_buf, DEFAULT_TIMEOUT, MAX_RETRIES)
+            .await?;
+        let smc_ver = from_bytes::<&[u8]>(&smc_response_buf[..smc_resp_size])
+            .map_err(|_| Error::InvalidResponse)?;
+        debug!(
+            "SMC version response: {:?}",
+            core::str::from_utf8(smc_ver).unwrap_or("<invalid>")
+        );
 
         // 3. Assemble the final string
         let mut resp_buf: String<MAX_STRING_SIZE> = String::new();
@@ -161,12 +225,15 @@ where
                 "<ctl200>\r\n{}\r\n<smc>\r\n{}",
                 core::str::from_utf8(ctl200_ver).unwrap_or("<invalid>"),
                 core::str::from_utf8(smc_ver).unwrap_or("<invalid>"),
-            ).map_err(|_| Error::WriteError)?;
+            )
+            .map_err(|_| Error::WriteError)?;
         }
 
         // Send the result back to the controller.
+        debug!("Sending combined response to controller");
         self.controller.write_line(&resp_buf).await?;
 
+        info!("AllVersions request completed successfully");
         Ok(())
     }
 
@@ -187,10 +254,22 @@ where
     async fn read_ferox_request<'b>(&'b mut self) -> Result<FeroxRequest> {
         let mut cmd_buf = [0u8; MAX_STRING_SIZE];
         let size = read_until(&mut self.controller.uart, &mut cmd_buf, CMD_PROMPT).await?;
+        debug!(
+            "Received command: {:?}",
+            core::str::from_utf8(&cmd_buf[..size]).unwrap_or("<invalid utf8>")
+        );
         match ferox::proto::ascii::from_bytes::<FeroxRequest>(&cmd_buf[..size]) {
             Ok(req) => Ok(req),
             Err(_) => Err(Error::InvalidRequest),
         }
+    }
+
+    // TODO(xguo): implement this function.
+    async fn read_and_process(&mut self) -> Result<String<MAX_STRING_SIZE>> {
+        let req = self.read_ferox_request().await?;
+        self.process_ferox_request(req).await?;
+        todo!();
+        // Ok(String::new())
     }
 }
 
@@ -228,8 +307,8 @@ async fn main(spawner: Spawner) -> ! {
         BufferedUart::new(
             p.UART4,
             Irqs4,
-            p.PB8,  // RX
-            p.PB9,  // TX
+            p.PB8, // RX
+            p.PB9, // TX
             &mut TX4_BUF,
             &mut RX4_BUF,
             config4,

@@ -377,12 +377,21 @@ mod tests {
 
         #[serde(rename = "varbytes")]
         VarBytes(Option<&'a [u8]>),
+
+        #[serde(rename = "varbytes2")]
+        VarBytes2,
     }
 
     #[test]
     fn test_serialize_varint_some() {
         init_logger();
         assert_eq!(to_string(&TestReq::VarInt(Some(42))).unwrap(), "varint 42");
+    }
+
+    #[test]
+    fn test_serialize_varbytes2() {
+        init_logger();
+        assert_eq!(to_string(&TestReq::VarBytes2).unwrap(), "varbytes2");
     }
 
     #[test]
