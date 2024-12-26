@@ -1,24 +1,22 @@
 use serde::{Deserialize, Serialize};
 
-use crate::proto::error;
-
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub enum FeroxRequest<'a> {
-    #[serde(rename = "fail")]
-    Failure { error: error::Error },
-
-    #[serde(rename = "ver")]
-    Version,
-
-    #[serde(rename = "another")]
-    Another(AnotherEnum),
-
-    #[serde(rename = "smc")]
-    SmcForward { data: &'a [u8] }
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum FeroxRequest {
+    #[serde(rename = "allver")]
+    AllVersions,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub enum AnotherEnum {
-    #[serde(rename = "ver")]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum Ctl200Request {
+    #[serde(rename = "version")]
     Version,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum SmcRequest<'a> {
+    #[serde(rename = "bia")]
+    Version(Option<&'a [u8]>),
 }

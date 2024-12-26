@@ -382,24 +382,18 @@ mod tests {
     #[test]
     fn test_serialize_varint_some() {
         init_logger();
-        info!("test_serialize_varint_some: INFO");
-
         assert_eq!(to_string(&TestReq::VarInt(Some(42))).unwrap(), "varint 42");
     }
 
     #[test]
     fn test_serialize_varint_none() {
         init_logger();
-        info!("test_serialize_varint_none: INFO");
-
         assert_eq!(to_string(&TestReq::VarInt(None)).unwrap(), "varint?");
     }
 
     #[test]
     fn test_serialize_varfloat_some() {
         init_logger();
-        info!("test_serialize_varfloat_some: INFO");
-
         assert_eq!(
             to_string(&TestReq::VarFloat(Some(3.14f32))).unwrap(),
             "varfloat 3.14"
@@ -409,16 +403,12 @@ mod tests {
     #[test]
     fn test_serialize_varfloat_none() {
         init_logger();
-        info!("test_serialize_varfloat_none: INFO");
-
         assert_eq!(to_string(&TestReq::VarFloat(None)).unwrap(), "varfloat?");
     }
 
     #[test]
     fn test_serialize_varbool_some() {
         init_logger();
-        info!("test_serialize_varbool_some: INFO");
-
         assert_eq!(
             to_string(&TestReq::VarBool(Some(true))).unwrap(),
             "varbool 1"
@@ -432,16 +422,12 @@ mod tests {
     #[test]
     fn test_serialize_varbool_none() {
         init_logger();
-        info!("test_serialize_varbool_none: INFO");
-
         assert_eq!(to_string(&TestReq::VarBool(None)).unwrap(), "varbool?");
     }
 
     #[test]
     fn test_serialize_varbytes_some() {
         init_logger();
-        info!("test_serialize_varbytes_some: INFO");
-
         assert_eq!(
             to_string(&TestReq::VarBytes(Some(b"hello"))).unwrap(),
             "varbytes hello"
@@ -451,8 +437,6 @@ mod tests {
     #[test]
     fn test_serialize_varbytes_none() {
         init_logger();
-        info!("test_serialize_varbytes_none: INFO");
-
         assert_eq!(to_string(&TestReq::VarBytes(None)).unwrap(), "varbytes?");
     }
 }

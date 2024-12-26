@@ -400,8 +400,6 @@ mod tests {
     #[test]
     fn test_deserialize_varint_some() {
         init_logger();
-        info!("test_deserialize_varint_some: INFO");
-
         let deserialized: TestReq = from_bytes(b"varint 42").unwrap();
         assert_eq!(deserialized, TestReq::VarInt(Some(42_i32)));
     }
@@ -409,8 +407,6 @@ mod tests {
     #[test]
     fn test_deserialize_varint_none() {
         init_logger();
-        info!("test_deserialize_varint_none: INFO");
-
         let deserialized: TestReq = from_bytes(b"varint?").unwrap();
         assert_eq!(deserialized, TestReq::VarInt(None));
     }
@@ -418,8 +414,6 @@ mod tests {
     #[test]
     fn test_deserialize_varfloat_some() {
         init_logger();
-        info!("test_deserialize_varfloat_some: INFO");
-
         let deserialized: TestReq = from_bytes(b"varfloat 3.14").unwrap();
         assert_eq!(deserialized, TestReq::VarFloat(Some(3.14_f32)));
     }
@@ -427,8 +421,6 @@ mod tests {
     #[test]
     fn test_deserialize_varfloat_none() {
         init_logger();
-        info!("test_deserialize_varfloat_none: INFO");
-
         let deserialized: TestReq = from_bytes(b"varfloat?").unwrap();
         assert_eq!(deserialized, TestReq::VarFloat(None));
     }
@@ -436,8 +428,6 @@ mod tests {
     #[test]
     fn test_deserialize_varbool_some() {
         init_logger();
-        info!("test_deserialize_varbool_some: INFO");
-
         let deserialized_true: TestReq = from_bytes(b"varbool 1").unwrap();
         assert_eq!(deserialized_true, TestReq::VarBool(Some(true)));
 
@@ -448,8 +438,6 @@ mod tests {
     #[test]
     fn test_deserialize_varbool_none() {
         init_logger();
-        info!("test_deserialize_varbool_none: INFO");
-
         let deserialized: TestReq = from_bytes(b"varbool?").unwrap();
         assert_eq!(deserialized, TestReq::VarBool(None));
     }
@@ -457,8 +445,6 @@ mod tests {
     #[test]
     fn test_deserialize_varbytes_some() {
         init_logger();
-        info!("test_deserialize_varbytes_some: INFO");
-
         let deserialized: TestReq = from_bytes(b"varbytes hello").unwrap();
         assert_eq!(deserialized, TestReq::VarBytes(Some(b"hello")));
     }
@@ -466,8 +452,6 @@ mod tests {
     #[test]
     fn test_deserialize_varbytes_none() {
         init_logger();
-        info!("test_deserialize_varbytes_none: INFO");
-
         let deserialized: TestReq = from_bytes(b"varbytes?").unwrap();
         assert_eq!(deserialized, TestReq::VarBytes(None));
     }
