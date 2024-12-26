@@ -5,6 +5,7 @@ use serde::{de, ser, Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
+    // TODO(xguo): Reorganize errors.
     BufferOverflow = 1,
     DeviceError,
     EchoMismatch,
@@ -26,6 +27,9 @@ pub enum Error {
     Utf8Error,
     ParseI8Error,
     UnexpectedToken,
+
+    // Ferox Request related
+    InvalidRequest,
 
     // There should be no errors after PlaceHolder.
     PlaceHolder = 0xFFFF,

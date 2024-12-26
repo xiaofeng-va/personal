@@ -9,19 +9,6 @@ pub mod ser;
 pub mod str;
 pub mod vec;
 
-// pub fn to_string<T>(value: &T) -> Result<Vec<u8, MAX_STRING_SIZE>, FeroxError>
-// where
-//     T: Serialize,
-// {
-//     let mut serializer = AsciiSerializer::new(vec::FeroxVec::<MAX_STRING_SIZE>::new());
-//     value.serialize(&mut serializer)?;
-//     let t = serializer
-//         .finalize()
-//         .release()
-//         .map_err(|_| FeroxError::BufferOverflow)?;
-//     Ok(t)
-// }
-
 pub fn to_string<T>(value: &T) -> Result<String<MAX_STRING_SIZE>>
 where
     T: Serialize,
