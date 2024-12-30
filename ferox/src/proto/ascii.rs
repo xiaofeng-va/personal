@@ -1,8 +1,10 @@
-use heapless::{Vec};
+use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
-use crate::{MAX_STRING_SIZE, proto::error::Error as FeroxError};
-use crate::proto::Result as Result;
+use crate::{
+    proto::{error::Error as FeroxError, Result},
+    MAX_STRING_SIZE,
+};
 
 pub mod deser;
 pub mod ser;

@@ -6,8 +6,11 @@ use core::{
 use defmt_or_log::{debug, info};
 use embedded_io_async::{Read, Write};
 use heapless::String;
-use crate::{MAX_STRING_SIZE, proto::error::Error};
-use crate::proto::Result;
+
+use crate::{
+    proto::{error::Error, Result},
+    MAX_STRING_SIZE,
+};
 
 const CRLF: &[u8] = b"\r\n";
 const CRLF_PROMPT: &[u8] = b"\r\n>>";
@@ -468,15 +471,16 @@ where
         Ok(resp)
     }
 
+    // TODO(xguo): Refactor the code to use ferox::uart.
     async fn query(&mut self, request: &str) -> Result<&'_ [u8]> {
         debug!("Sending command: '{}'", request);
         self.uart.write_all(request.as_bytes()).await.map_err(|_| {
             debug!("Failed to write command");
-            Error::WriteError
+            Error::WriteErrorInCtl200Query
         })?;
         self.uart.write_all(CRLF).await.map_err(|_| {
             debug!("Failed to write CRLF");
-            Error::WriteError
+            Error::WriteErrorInCtl200Query
         })?;
         self.uart.flush().await.map_err(|_| {
             debug!("Failed to flush UART");
@@ -624,9 +628,8 @@ mod tests {
     use embedded_io_async::{Read, Write};
     use futures::lock::Mutex;
 
-    use crate::testing::helpers::init_logger;
-
     use super::*;
+    use crate::testing::helpers::init_logger;
 
     const UNKNOWN_COMMAND: &[u8] = b"Unknown command";
 
@@ -642,7 +645,7 @@ mod tests {
 
     #[derive(Debug)]
     enum MockError {
-        WriteError,
+        MockWriteError,
     }
 
     impl embedded_io::Error for MockError {
@@ -724,7 +727,7 @@ mod tests {
                             self.append_read_data(UNKNOWN_COMMAND);
                         }
                     }
-                    _ => return Err(MockError::WriteError),
+                    _ => return Err(MockError::MockWriteError),
                 }
                 self.append_read_data(CRLF_PROMPT);
             }

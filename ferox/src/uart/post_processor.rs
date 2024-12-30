@@ -1,4 +1,3 @@
-
 pub trait PostProcessor {
     fn post_process<'a>(&self, data: &'a [u8]) -> &'a [u8];
 }
@@ -12,7 +11,7 @@ impl PostProcessor for VaPostProcessor {
         if let Some(pos) = data.iter().position(|&x| x == b'\n') {
             &data[pos + 1..]
         } else {
-            &data[..]
+            data
         }
     }
 }
