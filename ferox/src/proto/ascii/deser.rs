@@ -1,4 +1,4 @@
-use defmt_or_log::{debug, Display2Format};
+use defmt_or_log::debug;
 use serde::de::{
     DeserializeSeed, Deserializer, EnumAccess, IntoDeserializer, VariantAccess, Visitor,
 };
@@ -95,14 +95,14 @@ impl<'de, 'a> Deserializer<'de> for &'a mut AsciiDeserializer<'de> {
         }
     }
 
-    fn deserialize_i8<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_i8<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
         Err(FeroxError::UnexpectedToken)
     }
 
-    fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_i16<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
@@ -119,7 +119,7 @@ impl<'de, 'a> Deserializer<'de> for &'a mut AsciiDeserializer<'de> {
         visitor.visit_i32(parsed)
     }
 
-    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value>
+    fn deserialize_i64<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
@@ -320,7 +320,6 @@ impl<'de, 'a> Deserializer<'de> for &'a mut AsciiDeserializer<'de> {
     }
 }
 
-
 struct EnumRef<'a, 'de: 'a> {
     de: &'a mut AsciiDeserializer<'de>,
     variant_name: &'de [u8],
@@ -339,10 +338,13 @@ impl<'de, 'a> EnumAccess<'de> for EnumRef<'a, 'de> {
         let v = seed.deserialize(s.into_deserializer())?;
         // 检查是否还有更多的输入
         let has_value = self.de.peek_token().is_some();
-        Ok((v, VariantRef { 
-            de: self.de,
-            has_value 
-        }))
+        Ok((
+            v,
+            VariantRef {
+                de: self.de,
+                has_value,
+            },
+        ))
     }
 }
 
@@ -391,8 +393,10 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::{proto::ascii::from_bytes, testing::helpers::init_logger};
-    use crate::proto::error::Error;
+    use crate::{
+        proto::{ascii::from_bytes, error::Error},
+        testing::helpers::init_logger,
+    };
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
     enum TestReq<'a> {
@@ -415,7 +419,10 @@ mod tests {
     #[test]
     fn test_deserialize_unknown_command() {
         init_logger();
-        assert_eq!(Error::InvalidRequestForDeserialize, from_bytes::<TestReq>(b"abc").unwrap_err());
+        assert_eq!(
+            Error::InvalidRequestForDeserialize,
+            from_bytes::<TestReq>(b"abc").unwrap_err()
+        );
     }
 
     #[test]

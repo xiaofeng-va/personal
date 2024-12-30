@@ -360,9 +360,7 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
-
-    use super::*;
-    use crate::{proto::ascii::to_string, testing::helpers::init_logger};
+    use crate::{proto::ascii::to_bytes, testing::helpers::init_logger};
 
     #[derive(Serialize, Deserialize, Debug)]
     enum TestReq<'a> {
@@ -385,67 +383,67 @@ mod tests {
     #[test]
     fn test_serialize_varint_some() {
         init_logger();
-        assert_eq!(to_string(&TestReq::VarInt(Some(42))).unwrap(), "varint 42");
+        assert_eq!(to_bytes(&TestReq::VarInt(Some(42))).unwrap(), b"varint 42");
     }
 
     #[test]
     fn test_serialize_varbytes2() {
         init_logger();
-        assert_eq!(to_string(&TestReq::VarBytes2).unwrap(), "varbytes2");
+        assert_eq!(to_bytes(&TestReq::VarBytes2).unwrap(), b"varbytes2");
     }
 
     #[test]
     fn test_serialize_varint_none() {
         init_logger();
-        assert_eq!(to_string(&TestReq::VarInt(None)).unwrap(), "varint?");
+        assert_eq!(to_bytes(&TestReq::VarInt(None)).unwrap(), b"varint?");
     }
 
     #[test]
     fn test_serialize_varfloat_some() {
         init_logger();
         assert_eq!(
-            to_string(&TestReq::VarFloat(Some(3.14f32))).unwrap(),
-            "varfloat 3.14"
+            to_bytes(&TestReq::VarFloat(Some(3.14f32))).unwrap(),
+            b"varfloat 3.14"
         );
     }
 
     #[test]
     fn test_serialize_varfloat_none() {
         init_logger();
-        assert_eq!(to_string(&TestReq::VarFloat(None)).unwrap(), "varfloat?");
+        assert_eq!(to_bytes(&TestReq::VarFloat(None)).unwrap(), b"varfloat?");
     }
 
     #[test]
     fn test_serialize_varbool_some() {
         init_logger();
         assert_eq!(
-            to_string(&TestReq::VarBool(Some(true))).unwrap(),
-            "varbool 1"
+            to_bytes(&TestReq::VarBool(Some(true))).unwrap(),
+            b"varbool 1"
         );
         assert_eq!(
-            to_string(&TestReq::VarBool(Some(false))).unwrap(),
-            "varbool 0"
+            to_bytes(&TestReq::VarBool(Some(false))).unwrap(),
+            b"varbool 0"
         );
     }
 
     #[test]
     fn test_serialize_varbool_none() {
         init_logger();
-        assert_eq!(to_string(&TestReq::VarBool(None)).unwrap(), "varbool?");
+        assert_eq!(to_bytes(&TestReq::VarBool(None)).unwrap(), b"varbool?");
     }
 
     #[test]
     fn test_serialize_varbytes_some() {
         init_logger();
         assert_eq!(
-            to_string(&TestReq::VarBytes(Some(b"hello"))).unwrap(),
-            "varbytes hello"
+            to_bytes(&TestReq::VarBytes(Some(b"hello"))).unwrap(),
+            b"varbytes hello"
         );
     }
 
     #[test]
     fn test_serialize_varbytes_none() {
         init_logger();
-        assert_eq!(to_string(&TestReq::VarBytes(None)).unwrap(), "varbytes?");
+        assert_eq!(to_bytes(&TestReq::VarBytes(None)).unwrap(), b"varbytes?");
     }
 }

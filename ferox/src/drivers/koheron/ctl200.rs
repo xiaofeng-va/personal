@@ -6,7 +6,7 @@ use core::{
 use defmt_or_log::{debug, info};
 use embedded_io_async::{Read, Write};
 use heapless::String;
-use crate::{common::MAX_STRING_SIZE, proto::error::Error};
+use crate::{MAX_STRING_SIZE, proto::error::Error};
 use crate::proto::Result;
 
 const CRLF: &[u8] = b"\r\n";
