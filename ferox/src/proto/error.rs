@@ -2,7 +2,7 @@ use core::fmt;
 
 use serde::{de, ser, Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     // TODO(xguo): Reorganize errors.
@@ -40,9 +40,9 @@ pub enum Error {
 
 #[cfg(not(feature = "full-display"))]
 impl core::fmt::Display for Error {
-    fn fmt(&self, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // do nothing if the feature is not enabled
-        Ok(())
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let error_number = *self as u16;
+        write!(f, "0x{:04X}", error_number)
     }
 }
 
@@ -69,13 +69,14 @@ impl core::fmt::Display for Error {
             Error::InvalidRequest => write!(f, "Invalid request"),
             Error::PlaceHolder => write!(f, "Placeholder error"),
             Error::InvalidRequestForDeserialize => write!(f, "Invalid request for deserialize"),
+            Error::UartRequestTimeout => write!(f, "UART request timeout"),
         }
     }
 }
 
 impl core::error::Error for Error {}
 
-impl ser::Error for crate::proto::error::Error {
+impl ser::Error for Error {
     fn custom<T>(_msg: T) -> Self
     where
         T: fmt::Display,
