@@ -30,6 +30,4 @@ full-display = []
 defmt = [ "dep:defmt", "defmt-or-log/defmt"  ]
 log = [ "full-display", "dep:log", "defmt-or-log/log" ]
 
-# at_least_one = []
-# default = [ "at_least_one" ]
 default = [ "log" ]

@@ -1,6 +1,7 @@
+use core::fmt::Write;
+
 use defmt_or_log::info;
 use postcard::ser_flavors::Flavor;
-use core::fmt::Write;
 use serde::{
     ser::{
         SerializeMap, SerializeSeq, SerializeStruct, SerializeStructVariant, SerializeTuple,
@@ -10,8 +11,7 @@ use serde::{
 };
 
 // use postcard::{Error as PostcardError, Result as PostCardResult};
-
-use crate::{proto::error::Error as FeroxError};
+use crate::proto::error::Error as FeroxError;
 
 pub struct AsciiSerializer<F: Flavor> {
     buffer: F,
@@ -19,17 +19,19 @@ pub struct AsciiSerializer<F: Flavor> {
 
 impl<F: Flavor> AsciiSerializer<F> {
     pub fn new(buffer: F) -> Self {
-        Self {
-            buffer,
-        }
+        Self { buffer }
     }
 
     fn try_extend(&mut self, data: &[u8]) -> Result<(), FeroxError> {
-        self.buffer.try_extend(data).map_err(|_| FeroxError::BufferOverflow)
+        self.buffer
+            .try_extend(data)
+            .map_err(|_| FeroxError::BufferOverflow)
     }
 
     fn try_push(&mut self, data: u8) -> Result<(), FeroxError> {
-        self.buffer.try_push(data).map_err(|_| FeroxError::BufferOverflow)
+        self.buffer
+            .try_push(data)
+            .map_err(|_| FeroxError::BufferOverflow)
     }
 
     pub fn finalize(self) -> F {
@@ -61,11 +63,11 @@ impl<F: Flavor> SerializeTuple for &mut AsciiSerializer<F> {
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 }
 
@@ -77,11 +79,11 @@ impl<F: Flavor> SerializeTupleStruct for &mut AsciiSerializer<F> {
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 }
 impl<F: Flavor> SerializeTupleVariant for &mut AsciiSerializer<F> {
@@ -92,11 +94,11 @@ impl<F: Flavor> SerializeTupleVariant for &mut AsciiSerializer<F> {
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 }
 
@@ -108,18 +110,18 @@ impl<F: Flavor> SerializeMap for &mut AsciiSerializer<F> {
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn serialize_value<T>(&mut self, _value: &T) -> Result<(), Self::Error>
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 }
 
@@ -131,11 +133,11 @@ impl<F: Flavor> SerializeStruct for &mut AsciiSerializer<F> {
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 }
 
@@ -147,16 +149,14 @@ impl<F: Flavor> SerializeStructVariant for &mut AsciiSerializer<F> {
     where
         T: ?Sized + Serialize,
     {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 }
 
-// TODO(xguo): Remove the allow below.
-#[allow(unused_variables)]
 impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
     type Ok = ();
     type Error = FeroxError;
@@ -190,14 +190,14 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
         self,
         _name: &'static str,
         variant_index: u32,
-        _variant: &'static str,
+        variant: &'static str,
     ) -> Result<Self::Ok, Self::Error> {
         info!(
             "Serializing unit variant: name = {}, variant_index = {}, variant = {}",
-            _name, variant_index, _variant
+            _name, variant_index, variant
         );
 
-        self.serialize_str(&_variant)
+        self.serialize_str(variant)
     }
 
     fn serialize_newtype_variant<T>(
@@ -223,12 +223,12 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
         }
     }
 
-    fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
-        todo!()
+    fn serialize_i8(self, _v: i8) -> Result<Self::Ok, Self::Error> {
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
-    fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
-        todo!()
+    fn serialize_i16(self, _v: i16) -> Result<Self::Ok, Self::Error> {
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
@@ -237,24 +237,24 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
         self.try_extend(s.as_bytes())
     }
 
-    fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error> {
-        todo!()
+    fn serialize_i64(self, _v: i64) -> Result<Self::Ok, Self::Error> {
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn serialize_u8(self, v: u8) -> Result<Self::Ok, Self::Error> {
         self.serialize_char(v as char)
     }
 
-    fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
-        todo!()
+    fn serialize_u16(self, _v: u16) -> Result<Self::Ok, Self::Error> {
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
-    fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error> {
-        todo!()
+    fn serialize_u32(self, _v: u32) -> Result<Self::Ok, Self::Error> {
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
-    fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
-        todo!()
+    fn serialize_u64(self, _v: u64) -> Result<Self::Ok, Self::Error> {
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error> {
@@ -263,16 +263,16 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
         self.try_extend(s.as_bytes())
     }
 
-    fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error> {
-        todo!()
+    fn serialize_f64(self, _v: f64) -> Result<Self::Ok, Self::Error> {
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
         self.try_push(v as u8)
     }
 
-    fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
-        todo!()
+    fn serialize_bytes(self, _v: &[u8]) -> Result<Self::Ok, Self::Error> {
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
@@ -288,50 +288,50 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
-    fn serialize_unit_struct(self, name: &'static str) -> Result<Self::Ok, Self::Error> {
-        todo!()
+    fn serialize_unit_struct(self, _name: &'static str) -> Result<Self::Ok, Self::Error> {
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     // do nothing
-    fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+    fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
         Ok(self)
     }
 
-    fn serialize_tuple(self, len: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        todo!()
+    fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, Self::Error> {
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn serialize_tuple_struct(
         self,
-        name: &'static str,
-        len: usize,
+        _name: &'static str,
+        _len: usize,
     ) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn serialize_tuple_variant(
         self,
-        name: &'static str,
-        variant_index: u32,
-        variant: &'static str,
-        len: usize,
+        _name: &'static str,
+        _variant_index: u32,
+        _variant: &'static str,
+        _len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
-    fn serialize_map(self, len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        todo!()
+    fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn serialize_struct(
         self,
-        name: &'static str,
-        len: usize,
+        _name: &'static str,
+        _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 
     fn serialize_struct_variant(
@@ -349,17 +349,18 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
         Err(FeroxError::PlaceHolder)
     }
 
-    fn collect_str<T>(self, value: &T) -> Result<Self::Ok, Self::Error>
+    fn collect_str<T>(self, _value: &T) -> Result<Self::Ok, Self::Error>
     where
         T: ?Sized + core::fmt::Display,
     {
-        todo!()
+        Err(Self::Error::NotSupportedInSerializing)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
+
     use crate::{proto::ascii::to_bytes, testing::helpers::init_logger};
 
     #[derive(Serialize, Deserialize, Debug)]

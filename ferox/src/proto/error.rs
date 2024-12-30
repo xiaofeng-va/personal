@@ -14,6 +14,12 @@ pub enum Error {
     ReadError,
     WriteError,
 
+    WriteErrorInTryOnce = 0x11,
+    WriteErrorInWriteLine,
+    WriteErrorInCtl200Query,
+    FormatErrorInWriteResponse,
+    FormatErrorInWriteError,
+
     BytesToUTF8Error = 0x1000,
     InvalidBoolean,
     ParseIntError,
@@ -31,6 +37,10 @@ pub enum Error {
     // Ferox Request related
     InvalidRequest,
     InvalidRequestForDeserialize,
+    InvalidRequestForSerialize,
+    NotSupportedInSerializing,
+    Ctl200RequestSerializeError,
+    SmcRequestSerializeError,
 
     UartRequestTimeout,
 
@@ -70,6 +80,15 @@ impl core::fmt::Display for Error {
             Error::PlaceHolder => write!(f, "Placeholder error"),
             Error::InvalidRequestForDeserialize => write!(f, "Invalid request for deserialize"),
             Error::UartRequestTimeout => write!(f, "UART request timeout"),
+            Error::InvalidRequestForSerialize => write!(f, "Invalid request for serialize"),
+            Error::NotSupportedInSerializing => write!(f, "Not supported in serializing"),
+            Error::WriteErrorInTryOnce => write!(f, "Write error in try_once operation"),
+            Error::WriteErrorInWriteLine => write!(f, "Write error in write_line operation"),
+            Error::WriteErrorInCtl200Query => write!(f, "Write error in CTL200 query"),
+            Error::FormatErrorInWriteResponse => write!(f, "Format error in write response"),
+            Error::FormatErrorInWriteError => write!(f, "Format error in write error"),
+            Error::Ctl200RequestSerializeError => write!(f, "CTL200 request serialization error"),
+            Error::SmcRequestSerializeError => write!(f, "SMC request serialization error"),
         }
     }
 }
@@ -81,9 +100,7 @@ impl ser::Error for Error {
     where
         T: fmt::Display,
     {
-        // TODO(xguo): Define the error code for custom error.
-        // crate::proto::error::Error::new(msg.to_string())
-        todo!()
+        Error::InvalidRequestForSerialize
     }
 }
 

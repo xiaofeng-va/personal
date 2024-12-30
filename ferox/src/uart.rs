@@ -75,11 +75,11 @@ where
         self.uart
             .write_all(request)
             .await
-            .map_err(|_| FeroxError::WriteError)?;
+            .map_err(|_| FeroxError::WriteErrorInTryOnce)?;
         self.uart
             .write_all(b"\r\n")
             .await
-            .map_err(|_| FeroxError::WriteError)?;
+            .map_err(|_| FeroxError::WriteErrorInTryOnce)?;
         self.uart
             .flush()
             .await
@@ -127,11 +127,11 @@ where
         self.uart
             .write_all(line.as_bytes())
             .await
-            .map_err(|_| FeroxError::WriteError)?;
+            .map_err(|_| FeroxError::WriteErrorInWriteLine)?;
         self.uart
             .write_all(b"\r\n")
             .await
-            .map_err(|_| FeroxError::WriteError)?;
+            .map_err(|_| FeroxError::WriteErrorInWriteLine)?;
         self.uart
             .flush()
             .await

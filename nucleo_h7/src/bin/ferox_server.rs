@@ -77,8 +77,8 @@ where
 
     async fn handle_all_versions(&mut self) -> Result<()> {
         info!("Handling AllVersions request");
-        let ctl200_req_str = to_bytes(&Ctl200Request::Version).map_err(|_| Error::WriteError)?;
-        let smc_req_str = to_bytes(&SmcRequest::Version(None)).map_err(|_| Error::WriteError)?;
+        let ctl200_req_str = to_bytes(&Ctl200Request::Version).map_err(|_| Error::Ctl200RequestSerializeError)?;
+        let smc_req_str = to_bytes(&SmcRequest::Version(None)).map_err(|_| Error::SmcRequestSerializeError)?;
 
         // 1. Send to ctl200
         let mut response_buf = [0u8; MAX_STRING_SIZE];
@@ -128,13 +128,16 @@ where
         let mut resp_buf: String<MAX_STRING_SIZE> = String::new();
         {
             use core::fmt::Write;
+            use core::str::from_utf8;
+            // TODO(xguo): Replace the output part below with a function, and use the same interface for both success and error returns. In this function, we can also try using a small 128-byte string first, then switch to a larger 1024-byte string if needed. Most of our responses can fit in small strings, with only a few requiring larger strings. We need to handle this situation. Perhaps macros would be a good choice.
+            info!("Assembling response: CTL200: {:?}, SMC: {:?}", from_utf8(ctl200_ver).unwrap(), from_utf8(smc_ver).unwrap());
             write!(
                 resp_buf,
                 "<ctl200>\r\n{}\r\n<smc>\r\n{}",
-                core::str::from_utf8(ctl200_ver).unwrap_or("<invalid>"),
-                core::str::from_utf8(smc_ver).unwrap_or("<invalid>"),
+                from_utf8(ctl200_ver).unwrap_or("<invalid>"),
+                from_utf8(smc_ver).unwrap_or("<invalid>"),
             )
-            .map_err(|_| Error::WriteError)?;
+            .map_err(|_| Error::FormatErrorInWriteResponse)?;
         }
 
         // Send the result back to the controller.
@@ -148,12 +151,7 @@ where
     async fn process_ferox_request(&mut self, req: FeroxRequest) -> Result<()> {
         match req {
             FeroxRequest::AllVersions => {
-                if let Err(_) = self.handle_all_versions().await {
-                    let _ = self
-                        .controller
-                        .write_line("Errors in handle_all_versions()")
-                        .await;
-                }
+                self.handle_all_versions().await?;
                 Ok(())
             }
         }
@@ -186,7 +184,7 @@ where
     use core::fmt::Write as FmtWrite;
     let error_num = err as u16;
     let mut s = String::<10>::new();
-    write!(s, "0x{:04X}", error_num).map_err(|_| Error::WriteError)?;
+    write!(s, "0x{:04X}", error_num).map_err(|_| Error::FormatErrorInWriteError)?;
     w.write_line(s.as_str()).await?;
     Ok(())
 }
@@ -238,7 +236,6 @@ async fn main(spawner: Spawner) -> ! {
         )
         .unwrap()
     };
-    // let (tx4, rx4) = usart4.split();
 
     static mut TX5_BUF: [u8; 256] = [0; 256];
     static mut RX5_BUF: [u8; 256] = [0; 256];
@@ -257,8 +254,6 @@ async fn main(spawner: Spawner) -> ! {
         )
         .unwrap()
     };
-    // 将 UART7 分拆成 (tx7, rx7)
-    // let (tx5, rx5) = usart5.split();
 
     static mut TX7_BUF: [u8; 256] = [0; 256];
     static mut RX7_BUF: [u8; 256] = [0; 256];
@@ -278,7 +273,6 @@ async fn main(spawner: Spawner) -> ! {
         )
         .unwrap()
     };
-    // let (tx7, rx7) = usart7.split();
 
     spawner.spawn(run_server(usart4, usart5, usart7)).unwrap();
 
