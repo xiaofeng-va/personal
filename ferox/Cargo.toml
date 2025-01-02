@@ -12,7 +12,10 @@ static_cell = "2.1.0"
 
 defmt-or-log = { version = "0.2.1", default-features = false}
 defmt = { version = "0.3.10", optional = true }
+embassy-time = { version = "0.3.2", features = ["tick-hz-32_768"] }
 log = { version = "0.4.22", optional = true}
+serde = { version = "1.0.196", default-features = false, features = ["derive"] }
+postcard ={ version = "1.1.1", default-features = false, features = ["heapless"] }
 
 [dev-dependencies]
 nb = "1.0.0"
@@ -26,6 +29,5 @@ full-display = []
 
 defmt = [ "dep:defmt", "defmt-or-log/defmt"  ]
 log = [ "full-display", "dep:log", "defmt-or-log/log" ]
-at_least_one = []
 
-default = [ "at_least_one" ]
+default = [ "log" ]

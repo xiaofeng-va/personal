@@ -20,3 +20,5 @@ DEFMT_LOG = "trace"
 [alias]
 rx = "run --release --example"
 bx = "build --release --example"
+rb = "run --release --bin"
+bb = "build --release --bin"

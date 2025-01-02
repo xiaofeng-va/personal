@@ -6,10 +6,22 @@ use core::{
 use defmt_or_log::{debug, info};
 use embedded_io_async::{Read, Write};
 use heapless::String;
+use serde::{Deserialize, Serialize};
+
+use crate::{
+    proto::{error::Error, Result},
+    MAX_STRING_SIZE,
+};
 
 const CRLF: &[u8] = b"\r\n";
 const CRLF_PROMPT: &[u8] = b"\r\n>>";
-const MAX_STRING_SIZE: usize = 64;
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum Ctl200Request {
+    #[serde(rename = "version")]
+    Version,
+}
 
 // Trait definition with lifetime parameter
 trait FromBytes<'a> {
@@ -467,15 +479,16 @@ where
         Ok(resp)
     }
 
+    // TODO(xguo): Refactor the code to use ferox::uart.
     async fn query(&mut self, request: &str) -> Result<&'_ [u8]> {
         debug!("Sending command: '{}'", request);
         self.uart.write_all(request.as_bytes()).await.map_err(|_| {
             debug!("Failed to write command");
-            Error::WriteError
+            Error::WriteErrorInCtl200Query
         })?;
         self.uart.write_all(CRLF).await.map_err(|_| {
             debug!("Failed to write CRLF");
-            Error::WriteError
+            Error::WriteErrorInCtl200Query
         })?;
         self.uart.flush().await.map_err(|_| {
             debug!("Failed to flush UART");
@@ -615,58 +628,6 @@ impl Display for Value<'_> {
     }
 }
 
-#[derive(Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
-pub enum Error {
-    BufferOverflow = 1,
-    DeviceError,
-    EchoMismatch,
-    FlushError,
-    InvalidResponse,
-    ReadError,
-    WriteError,
-
-    BytesToUTF8Error = 0x1000,
-    InvalidBoolean,
-    ParseIntError,
-    ParseFloatError,
-
-    // Used by application
-    InvalidFirmwareVersion = 0x2000,
-}
-
-#[cfg(not(feature = "full-display"))]
-impl core::fmt::Display for Error {
-    fn fmt(&self, _f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        // do nothing if the feature is not enabled
-        Ok(())
-    }
-}
-
-#[cfg(feature = "full-display")]
-impl core::fmt::Display for Error {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Error::BufferOverflow => write!(f, "Buffer overflow"),
-            Error::EchoMismatch => write!(f, "Echo mismatch"),
-            Error::FlushError => write!(f, "Flush error"),
-            Error::InvalidFirmwareVersion => write!(f, "Invalid firmware version"),
-            Error::InvalidResponse => write!(f, "Invalid response"),
-            Error::ReadError => write!(f, "Read error"),
-            Error::WriteError => write!(f, "Write error"),
-            Error::DeviceError => write!(f, "Device error"),
-            Error::InvalidBoolean => write!(f, "Invalid boolean"),
-            Error::BytesToUTF8Error => write!(f, "Bytes to UTF-8 error"),
-            Error::ParseIntError => write!(f, "Parse int error"),
-            Error::ParseFloatError => write!(f, "Parse float error"),
-        }
-    }
-}
-
-impl core::error::Error for Error {}
-
-pub type Result<T> = core::result::Result<T, Error>;
-
 #[cfg(test)]
 mod tests {
     extern crate std;
@@ -676,6 +637,7 @@ mod tests {
     use futures::lock::Mutex;
 
     use super::*;
+    use crate::testing::helpers::init_logger;
 
     const UNKNOWN_COMMAND: &[u8] = b"Unknown command";
 
@@ -691,9 +653,7 @@ mod tests {
 
     #[derive(Debug)]
     enum MockError {
-        // ReadError,
-        // FlushError,
-        WriteError,
+        MockWriteError,
     }
 
     impl embedded_io::Error for MockError {
@@ -775,7 +735,7 @@ mod tests {
                             self.append_read_data(UNKNOWN_COMMAND);
                         }
                     }
-                    _ => return Err(MockError::WriteError),
+                    _ => return Err(MockError::MockWriteError),
                 }
                 self.append_read_data(CRLF_PROMPT);
             }
@@ -798,11 +758,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_ctl200_set() {
+        init_logger();
         let mock_stream: MockStream = MockStream::new();
-
         let mut ctl200 = Ctl200::new(mock_stream);
-
-        env_logger::builder().is_test(true).try_init().unwrap();
         debug!(">>>Getting lason as false");
         let t = ctl200.get::<bool>("lason").await.unwrap();
         debug!("test_ctl200_set(): lason: {}", t);
