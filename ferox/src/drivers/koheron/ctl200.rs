@@ -640,8 +640,6 @@ mod tests {
 
     #[derive(Debug)]
     enum MockError {
-        // ReadError,
-        // FlushError,
         WriteError,
     }
 
