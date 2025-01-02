@@ -6,6 +6,7 @@ use core::{
 use defmt_or_log::{debug, info};
 use embedded_io_async::{Read, Write};
 use heapless::String;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     proto::{error::Error, Result},
@@ -14,6 +15,13 @@ use crate::{
 
 const CRLF: &[u8] = b"\r\n";
 const CRLF_PROMPT: &[u8] = b"\r\n>>";
+
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub enum Ctl200Request {
+    #[serde(rename = "version")]
+    Version,
+}
 
 // Trait definition with lifetime parameter
 trait FromBytes<'a> {

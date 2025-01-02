@@ -73,7 +73,7 @@ fn is_whitespace(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\r' | b'\n')
 }
 
-impl<'de, 'a> Deserializer<'de> for &'a mut AsciiDeserializer<'de> {
+impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
     type Error = FeroxError;
 
     fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value>
@@ -352,7 +352,7 @@ struct VariantRef<'a, 'de: 'a> {
     has_value: bool,
 }
 
-impl<'de, 'a> VariantAccess<'de> for VariantRef<'a, 'de> {
+impl<'de> VariantAccess<'de> for VariantRef<'_, 'de> {
     type Error = FeroxError;
 
     fn unit_variant(self) -> Result<()> {

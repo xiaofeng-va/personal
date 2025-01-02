@@ -13,10 +13,11 @@ use embassy_stm32::{
 use embassy_time::{Duration, Timer};
 use embedded_io_async::{Read, Write};
 use ferox::{
+    drivers::koheron::ctl200::Ctl200Request,
     proto::{
         ascii::{from_bytes, to_bytes},
         error::Error,
-        ferox::{Ctl200Request, FeroxRequest, SmcRequest},
+        ferox::{FeroxRequest, SmcRequest},
         Result,
     },
     uart::{
@@ -77,8 +78,10 @@ where
 
     async fn handle_all_versions(&mut self) -> Result<()> {
         info!("Handling AllVersions request");
-        let ctl200_req_str = to_bytes(&Ctl200Request::Version).map_err(|_| Error::Ctl200RequestSerializeError)?;
-        let smc_req_str = to_bytes(&SmcRequest::Version(None)).map_err(|_| Error::SmcRequestSerializeError)?;
+        let ctl200_req_str =
+            to_bytes(&Ctl200Request::Version).map_err(|_| Error::Ctl200RequestSerializeError)?;
+        let smc_req_str =
+            to_bytes(&SmcRequest::Version(None)).map_err(|_| Error::SmcRequestSerializeError)?;
 
         // 1. Send to ctl200
         let mut response_buf = [0u8; MAX_STRING_SIZE];
@@ -127,10 +130,13 @@ where
         // 3. Assemble the final string
         let mut resp_buf: String<MAX_STRING_SIZE> = String::new();
         {
-            use core::fmt::Write;
-            use core::str::from_utf8;
+            use core::{fmt::Write, str::from_utf8};
             // TODO(xguo): Replace the output part below with a function, and use the same interface for both success and error returns. In this function, we can also try using a small 128-byte string first, then switch to a larger 1024-byte string if needed. Most of our responses can fit in small strings, with only a few requiring larger strings. We need to handle this situation. Perhaps macros would be a good choice.
-            info!("Assembling response: CTL200: {:?}, SMC: {:?}", from_utf8(ctl200_ver).unwrap(), from_utf8(smc_ver).unwrap());
+            info!(
+                "Assembling response: CTL200: {:?}, SMC: {:?}",
+                from_utf8(ctl200_ver).unwrap(),
+                from_utf8(smc_ver).unwrap()
+            );
             write!(
                 resp_buf,
                 "<ctl200>\r\n{}\r\n<smc>\r\n{}",
