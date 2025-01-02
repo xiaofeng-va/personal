@@ -1,7 +1,7 @@
 # This file was automatically generated.
 
 [target.thumbv7em-none-eabihf]
-runner = 'probe-rs run --probe 0483:374e --chip STM32H723ZGTx'
+runner = 'probe-rs run --chip STM32H723ZGTx'
 
 rustflags = [
   "-C", "link-arg=-Tlink.x",

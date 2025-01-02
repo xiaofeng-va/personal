@@ -336,7 +336,6 @@ impl<'de, 'a> EnumAccess<'de> for EnumRef<'a, 'de> {
         let s = core::str::from_utf8(self.variant_name).map_err(|_| FeroxError::Utf8Error)?;
         debug!("Deserializing variant name: {:?}", s);
         let v = seed.deserialize(s.into_deserializer())?;
-        // 检查是否还有更多的输入
         let has_value = self.de.peek_token().is_some();
         Ok((
             v,

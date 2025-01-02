@@ -171,6 +171,7 @@ where
     }
 
     async fn read_and_process(&mut self) -> Result<()> {
+        // TODO(xguo): Keep the input / output buffer here, and reuse them for request / response handling.
         let req = self.read_ferox_request().await?;
         self.process_ferox_request(req).await
     }

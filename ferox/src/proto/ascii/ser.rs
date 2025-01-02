@@ -10,7 +10,6 @@ use serde::{
     Serialize, Serializer,
 };
 
-// use postcard::{Error as PostcardError, Result as PostCardResult};
 use crate::proto::error::Error as FeroxError;
 
 pub struct AsciiSerializer<F: Flavor> {
