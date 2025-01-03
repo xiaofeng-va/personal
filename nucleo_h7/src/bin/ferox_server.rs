@@ -79,9 +79,9 @@ where
     async fn handle_all_versions(&mut self) -> Result<()> {
         info!("Handling AllVersions request");
         let ctl200_req_str =
-            to_bytes(&Ctl200Request::Version).map_err(|_| Error::Ctl200RequestSerializeError)?;
+            to_bytes(&Ctl200Request::Version)?;
         let smc_req_str =
-            to_bytes(&SmcRequest::Version(None)).map_err(|_| Error::SmcRequestSerializeError)?;
+            to_bytes(&SmcRequest::Version(None))?;
 
         // 1. Send to ctl200
         let mut response_buf = [0u8; MAX_STRING_SIZE];
@@ -100,7 +100,7 @@ where
             )
             .await?;
         let ctl200_ver =
-            from_bytes::<&[u8]>(ctl_processed_resp).map_err(|_| Error::InvalidResponse)?;
+            from_bytes::<&[u8]>(ctl_processed_resp)?;
         debug!(
             "CTL200 version response: {:?}",
             core::str::from_utf8(ctl200_ver).unwrap_or("<invalid>")
@@ -121,7 +121,7 @@ where
             )
             .await?;
         let smc_ver =
-            from_bytes::<&[u8]>(smc_processed_resp).map_err(|_| Error::InvalidResponse)?;
+            from_bytes::<&[u8]>(smc_processed_resp)?;
         debug!(
             "SMC version response: {:?}",
             core::str::from_utf8(smc_ver).unwrap_or("<invalid>")
@@ -143,7 +143,7 @@ where
                 from_utf8(ctl200_ver).unwrap_or("<invalid>"),
                 from_utf8(smc_ver).unwrap_or("<invalid>"),
             )
-            .map_err(|_| Error::FormatErrorInWriteResponse)?;
+            .map_err(|_| Error::FeroxServerFormatErrorInWriteResponse)?;
         }
 
         // Send the result back to the controller.
@@ -172,7 +172,7 @@ where
         );
         match ferox::proto::ascii::from_bytes::<FeroxRequest>(&cmd_buf[..size]) {
             Ok(req) => Ok(req),
-            Err(_) => Err(Error::InvalidRequest),
+            Err(err) => Err(err),
         }
     }
 
@@ -191,7 +191,7 @@ where
     use core::fmt::Write as FmtWrite;
     let error_num = err as u16;
     let mut s = String::<10>::new();
-    write!(s, "0x{:04X}", error_num).map_err(|_| Error::FormatErrorInWriteError)?;
+    write!(s, "0x{:04X}", error_num).map_err(|_| Error::FeroxServerFormatErrorInWriteResponse)?;
     w.write_line(s.as_str()).await?;
     Ok(())
 }

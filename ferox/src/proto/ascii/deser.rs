@@ -1,7 +1,6 @@
 use defmt_or_log::debug;
 use serde::de::{
-    DeserializeSeed, Deserializer, EnumAccess, VariantAccess, Visitor,
-    value::StrDeserializer,
+    value::StrDeserializer, DeserializeSeed, Deserializer, EnumAccess, VariantAccess, Visitor,
 };
 
 use crate::proto::{error::Error as FeroxError, Result};
@@ -81,14 +80,14 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        let token = self.next_token().ok_or(FeroxError::EndOfFile)?;
+        let token = self.next_token().ok_or(FeroxError::DeserializeEndOfFile)?;
         match token {
             b"1" => visitor.visit_bool(true),
             b"0" => visitor.visit_bool(false),
@@ -100,23 +99,25 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_i16<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        let token = self.next_token().ok_or(FeroxError::EndOfFile)?;
+        let token = self.next_token().ok_or(FeroxError::DeserializeEndOfFile)?;
         let s = core::str::from_utf8(token).map_err(|_| FeroxError::SerdeUtf8Error)?;
-        let parsed = s.parse::<i32>().map_err(|_| FeroxError::SerdeParseIntError)?;
+        let parsed = s
+            .parse::<i32>()
+            .map_err(|_| FeroxError::SerdeParseIntError)?;
         visitor.visit_i32(parsed)
     }
 
@@ -124,44 +125,46 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_u8<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_u16<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_u32<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_u64<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_f32<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        let token = self.next_token().ok_or(FeroxError::EndOfFile)?;
+        let token = self.next_token().ok_or(FeroxError::DeserializeEndOfFile)?;
         let s = core::str::from_utf8(token).map_err(|_| FeroxError::SerdeUtf8Error)?;
-        let parsed = s.parse::<f32>().map_err(|_| FeroxError::SerdeParseFloatError)?;
+        let parsed = s
+            .parse::<f32>()
+            .map_err(|_| FeroxError::SerdeParseFloatError)?;
         visitor.visit_f32(parsed)
     }
 
@@ -169,42 +172,45 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_str<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_string<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_bytes<V>(self, visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        visitor.visit_borrowed_bytes(self.take_remaining().ok_or(FeroxError::EndOfFile)?)
+        visitor.visit_borrowed_bytes(
+            self.take_remaining()
+                .ok_or(FeroxError::DeserializeEndOfFile)?,
+        )
     }
 
     fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value>
@@ -224,35 +230,35 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_unit_struct<V>(self, _name: &'static str, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_newtype_struct<V>(self, _name: &'static str, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_seq<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_tuple<V>(self, _len: usize, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_tuple_struct<V>(
@@ -264,14 +270,14 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_map<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_struct<V>(
@@ -283,14 +289,14 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_identifier<V>(self, _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn deserialize_enum<V>(
@@ -302,7 +308,7 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        let variant_name = self.next_token().ok_or(FeroxError::EndOfFile)?;
+        let variant_name = self.next_token().ok_or(FeroxError::DeserializeEndOfFile)?;
         debug!(
             "Deserializing enum variant: {:?}",
             core::str::from_utf8(variant_name).unwrap_or("<invalid utf8>")
@@ -317,7 +323,7 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 }
 
@@ -358,7 +364,7 @@ impl<'de> VariantAccess<'de> for VariantRef<'_, 'de> {
 
     fn unit_variant(self) -> Result<()> {
         if self.has_value {
-            return Err(FeroxError::UnexpectedToken);
+            return Err(FeroxError::DeserializeUnexpectedToken);
         }
         Ok(())
     }
@@ -368,7 +374,7 @@ impl<'de> VariantAccess<'de> for VariantRef<'_, 'de> {
         T: DeserializeSeed<'de>,
     {
         if !self.has_value {
-            return Err(FeroxError::UnexpectedToken);
+            return Err(FeroxError::DeserializeUnexpectedToken);
         }
         seed.deserialize(&mut *self.de)
     }
@@ -377,14 +383,14 @@ impl<'de> VariantAccess<'de> for VariantRef<'_, 'de> {
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 
     fn struct_variant<V>(self, _fields: &'static [&'static str], _visitor: V) -> Result<V::Value>
     where
         V: Visitor<'de>,
     {
-        Err(FeroxError::UnexpectedToken)
+        Err(FeroxError::DeserializeUnexpectedToken)
     }
 }
 
@@ -420,7 +426,7 @@ mod tests {
     fn test_deserialize_unknown_command() {
         init_logger();
         assert_eq!(
-            Error::InvalidRequestForDeserialize,
+            Error::DeserializeInvalidRequest,
             from_bytes::<TestReq>(b"abc").unwrap_err()
         );
     }

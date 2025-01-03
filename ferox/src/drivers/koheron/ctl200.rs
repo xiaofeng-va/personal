@@ -52,7 +52,7 @@ impl<'a> FromBytes<'a> for bool {
 impl<'a> FromBytes<'a> for i32 {
     fn from_bytes(bytes: &'a [u8]) -> Result<Self> {
         core::str::from_utf8(bytes)
-            .map_err(|_| Error::FromBytesUTF8Error)?
+            .map_err(|_| Error::FromBytesUtf8Error)?
             .parse()
             .map_err(|_| Error::FromBytesParseIntError)
     }
@@ -62,7 +62,7 @@ impl<'a> FromBytes<'a> for i32 {
 impl<'a> FromBytes<'a> for f32 {
     fn from_bytes(bytes: &'a [u8]) -> Result<Self> {
         core::str::from_utf8(bytes)
-            .map_err(|_| Error::FromBytesUTF8Error)?
+            .map_err(|_| Error::FromBytesUtf8Error)?
             .parse()
             .map_err(|_| Error::FromBytesParseFloatError)
     }
@@ -415,7 +415,7 @@ where
         let serial = self.get::<&'_ [u8]>("serial").await?;
         debug!(
             "serial: {:?}",
-            from_utf8(serial).map_err(|_| Error::DefmtUTF8Error)?
+            from_utf8(serial).map_err(|_| Error::Utf8ErrorInDefmt)?
         );
         Ok(serial)
     }
@@ -425,7 +425,7 @@ where
         let data = self.get::<&'_ [u8]>("userdata").await?;
         debug!(
             "userdata: {:?}",
-            from_utf8(data).map_err(|_| Error::DefmtUTF8Error)?
+            from_utf8(data).map_err(|_| Error::Utf8ErrorInDefmt)?
         );
         Ok(data)
     }
@@ -433,11 +433,11 @@ where
     /// Sets the user data string.
     pub async fn set_userdata(&mut self, data: &'_ [u8]) -> Result<()> {
         if !data.is_ascii() || data.iter().any(|&b| b.is_ascii_whitespace()) {
-            return Err(Error::DeviceError);
+            return Err(Error::Ctl200UserDataError);
         }
         debug!(
             "userdata write: {:?}",
-            from_utf8(data).map_err(|_| Error::DefmtUTF8Error)?
+            from_utf8(data).map_err(|_| Error::Utf8ErrorInDefmt)?
         );
         self.set("userdata write", Value::String(data)).await
     }
@@ -474,7 +474,7 @@ where
     pub async fn version(&mut self) -> Result<&[u8]> {
         debug!("Ctl200::version() 0");
         let resp: &[u8] = self.get::<&[u8]>("version").await?;
-        let t = core::str::from_utf8(resp).map_err(|_| Error::FromUTF8Error)?;
+        let t = core::str::from_utf8(resp).map_err(|_| Error::Ctl200FromUtf8Error)?;
         debug!("version: {:?}", t);
         Ok(resp)
     }
@@ -509,7 +509,7 @@ where
                     echo_end = Some(i);
                     response_start = Some(i + 2);
                 } else {
-                    return Err(Error::InvalidResponse);
+                    return Err(Error::Ctl200InvalidResponse);
                 }
             }
         }
@@ -520,7 +520,7 @@ where
                 let response = &full_response[r_start..];
                 (echo, response)
             }
-            _ => return Err(Error::InvalidResponse),
+            _ => return Err(Error::Ctl200InvalidResponse),
         };
         debug!("Got echo: {:?}, response: {:?}", echo, response);
 
@@ -530,7 +530,7 @@ where
                 request,
                 core::str::from_utf8(echo).unwrap_or("<invalid>")
             );
-            return Err(Error::EchoMismatch);
+            return Err(Error::Ctl200EchoMismatch);
         }
 
         Ok(response)
@@ -568,7 +568,7 @@ where
         }
 
         // Buffer overflow
-        Err(Error::BufferOverflow)
+        Err(Error::Ctl200ResponseBufferOverflow)
     }
 
     async fn get<'b, T>(&'b mut self, param: &str) -> Result<T>

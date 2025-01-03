@@ -45,7 +45,7 @@ pub async fn read_until<R: Read>(
         }
     }
 
-    Err(FeroxError::BufferOverflow)
+    Err(FeroxError::UartReadBufferOverflow)
 }
 
 pub struct UartWrapper<UART, P> {

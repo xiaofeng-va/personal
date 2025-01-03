@@ -24,7 +24,7 @@ type CTL200 = Ctl200<BufferedUart<'static, peripherals::UART7>>;
 #[allow(non_snake_case)]
 async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
     if ctl200.version().await? != b"V0.17" {
-        return Err(Error::InvalidFirmwareVersion);
+        return Err(Error::Ctl200InvalidResponse);
     }
 
     {
@@ -35,7 +35,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         info!("Laser is {}", if lason2 { "ON" } else { "OFF" });
         let _ = ctl200.set_laser_en(lason).await; // reset
         if lason2 == lason {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -49,7 +49,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         info!("New laser current is {} mA", laser_current_mA2);
         let _ = ctl200.set_laser_current_mA(laser_current_mA).await; // reset
         if (laser_current_mA2 - laser_current_mA - 1f32).abs() > 0.1f32 {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -61,7 +61,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         info!("New laser delay is {} ms", laser_delay_ms2);
         let _ = ctl200.set_laser_delay_ms(laser_delay_ms).await; // reset
         if (laser_delay_ms2 - laser_delay_ms - 1f32).abs() > 0.1f32 {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -87,7 +87,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         );
         let _ = ctl200.set_interlock_en(interlock_en).await; // reset
         if interlock_en2 == interlock_en {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -109,7 +109,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
             .set_laser_current_mod_gain_mA_V(current_mod_gain_mA_V)
             .await; // reset
         if (current_mod_gain_mA_V2 - current_mod_gain_mA_V - 1f32).abs() > 0.1f32 {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -121,7 +121,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         info!("New TEC is {}", if tec2 { "ON" } else { "OFF" });
         let _ = ctl200.set_tec_en(tec).await; // reset
         if tec2 == tec {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -139,7 +139,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         );
         let _ = ctl200.set_temp_prot_en(temp_protect).await; // reset
         if temp_protect2 == temp_protect {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -151,7 +151,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         info!("New temperature setpoint is {} Ohm", temp_set_Ohm2);
         let _ = ctl200.set_temp_set_Ohm(temp_set_Ohm).await; // reset
         if (temp_set_Ohm2 - temp_set_Ohm - 1f32).abs() > 0.1f32 {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -190,7 +190,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         info!("New minimum temperature is {} Ohm", temp_min_Ohm2);
         let _ = ctl200.set_temp_min_Ohm(temp_min_Ohm).await; // reset
         if (temp_min_Ohm2 - temp_min_Ohm - 1f32).abs() > 0.1f32 {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -202,7 +202,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         info!("New maximum temperature is {} Ohm", temp_max_Ohm2);
         let _ = ctl200.set_temp_max_Ohm(temp_max_Ohm).await; // reset
         if (temp_max_Ohm2 - temp_max_Ohm - 1f32).abs() > 0.1f32 {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -214,7 +214,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         info!("New minimum TEC voltage is {} V", tec_min_V2);
         let _ = ctl200.set_tec_min_V(tec_min_V).await; // reset
         if (tec_min_V2 - tec_min_V - 1f32).abs() > 0.1f32 {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -249,7 +249,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         );
         let _ = ctl200.set_temp_mod_gain_Ohm_V(temp_mod_gain_Ohm_V).await?; // reset
         if (temp_mod_gain_Ohm_V2 - temp_mod_gain_Ohm_V - 1f32).abs() > 0.1f32 {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
@@ -282,7 +282,7 @@ async fn ctl200_process(mut ctl200: CTL200) -> Result<(), Error> {
         let userdata2 = ctl200.userdata().await?;
         info!("New user data is {}", userdata2);
         if userdata2 != b"hello" {
-            return Err(Error::WriteError);
+            return Err(Error::Ctl200InvalidResponse);
         }
     }
 
