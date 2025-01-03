@@ -1,95 +1,74 @@
 use core::fmt;
 use serde::{de, ser, Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize,thiserror::Error)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, thiserror::Error)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
-    // TODO(xguo): Reorganize errors.
+    #[error("Buffer overflow")]
     BufferOverflow = 1,
+    #[error("Device error")]
     DeviceError,
+    #[error("Echo mismatch")]
     EchoMismatch,
+    #[error("Flush error")]
     FlushError,
+    #[error("Invalid response")]
     InvalidResponse,
+    #[error("Read error")]
     ReadError,
+    #[error("Write error")]
     WriteError,
 
+    #[error("Write error in try_once operation")]
     WriteErrorInTryOnce = 0x11,
+    #[error("Write error in write_line operation")]
     WriteErrorInWriteLine,
+    #[error("Write error in CTL200 query")]
     WriteErrorInCtl200Query,
+    #[error("Format error in write response")]
     FormatErrorInWriteResponse,
+    #[error("Format error in write error")]
     FormatErrorInWriteError,
 
+    #[error("Bytes to UTF-8 error")]
     BytesToUTF8Error = 0x1000,
+    #[error("Invalid boolean")]
     InvalidBoolean,
+    #[error("Parse int error")]
     ParseIntError,
+    #[error("Parse float error")]
     ParseFloatError,
 
-    // Used by application
+    #[error("Invalid firmware version")]
     InvalidFirmwareVersion = 0x2000,
 
-    // (De)Serialization errors
+    #[error("End of file")]
     EndOfFile,
+    #[error("UTF-8 error")]
     Utf8Error,
+    #[error("Parse i8 error")]
     ParseI8Error,
+    #[error("Unexpected token")]
     UnexpectedToken,
 
-    // Ferox Request related
+    #[error("Invalid request")]
     InvalidRequest,
+    #[error("Invalid request for deserialize")]
     InvalidRequestForDeserialize,
+    #[error("Invalid request for serialize")]
     InvalidRequestForSerialize,
+    #[error("Not supported in serializing")]
     NotSupportedInSerializing,
+    #[error("CTL200 request serialization error")]
     Ctl200RequestSerializeError,
+    #[error("SMC request serialization error")]
     SmcRequestSerializeError,
 
+    #[error("UART request timeout")]
     UartRequestTimeout,
 
-    // There should be no errors after PlaceHolder.
+    #[error("Placeholder error")]
     PlaceHolder = 0xFFFF,
-}
-
-#[cfg(not(feature = "full-display"))]
-impl core::fmt::Display for Error {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let error_number = *self as u16;
-        write!(f, "0x{:04X}", error_number)
-    }
-}
-
-#[cfg(feature = "full-display")]
-impl core::fmt::Display for Error {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Error::BufferOverflow => write!(f, "Buffer overflow"),
-            Error::EchoMismatch => write!(f, "Echo mismatch"),
-            Error::FlushError => write!(f, "Flush error"),
-            Error::InvalidFirmwareVersion => write!(f, "Invalid firmware version"),
-            Error::InvalidResponse => write!(f, "Invalid response"),
-            Error::ReadError => write!(f, "Read error"),
-            Error::WriteError => write!(f, "Write error"),
-            Error::DeviceError => write!(f, "Device error"),
-            Error::InvalidBoolean => write!(f, "Invalid boolean"),
-            Error::BytesToUTF8Error => write!(f, "Bytes to UTF-8 error"),
-            Error::ParseIntError => write!(f, "Parse int error"),
-            Error::ParseFloatError => write!(f, "Parse float error"),
-            Error::EndOfFile => write!(f, "End of file"),
-            Error::Utf8Error => write!(f, "UTF-8 error"),
-            Error::ParseI8Error => write!(f, "Parse i8 error"),
-            Error::UnexpectedToken => write!(f, "Unexpected token"),
-            Error::InvalidRequest => write!(f, "Invalid request"),
-            Error::PlaceHolder => write!(f, "Placeholder error"),
-            Error::InvalidRequestForDeserialize => write!(f, "Invalid request for deserialize"),
-            Error::UartRequestTimeout => write!(f, "UART request timeout"),
-            Error::InvalidRequestForSerialize => write!(f, "Invalid request for serialize"),
-            Error::NotSupportedInSerializing => write!(f, "Not supported in serializing"),
-            Error::WriteErrorInTryOnce => write!(f, "Write error in try_once operation"),
-            Error::WriteErrorInWriteLine => write!(f, "Write error in write_line operation"),
-            Error::WriteErrorInCtl200Query => write!(f, "Write error in CTL200 query"),
-            Error::FormatErrorInWriteResponse => write!(f, "Format error in write response"),
-            Error::FormatErrorInWriteError => write!(f, "Format error in write error"),
-            Error::Ctl200RequestSerializeError => write!(f, "CTL200 request serialization error"),
-            Error::SmcRequestSerializeError => write!(f, "SMC request serialization error"),
-        }
-    }
 }
 
 impl ser::Error for Error {
