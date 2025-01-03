@@ -25,9 +25,9 @@ pub async fn read_until<R: Read>(
         let sz = reader
             .read(&mut temp[..chunk_size])
             .await
-            .map_err(|_| FeroxError::ReadError)?;
+            .map_err(|_| FeroxError::UartReadError)?;
         if sz == 0 {
-            return Err(FeroxError::ReadError);
+            return Err(FeroxError::UartReadError);
         }
         debug!(
             "Read {} bytes: {:?}",
@@ -75,15 +75,15 @@ where
         self.uart
             .write_all(request)
             .await
-            .map_err(|_| FeroxError::WriteErrorInTryOnce)?;
+            .map_err(|_| FeroxError::UartWriteErrorInTryOnce)?;
         self.uart
             .write_all(b"\r\n")
             .await
-            .map_err(|_| FeroxError::WriteErrorInTryOnce)?;
+            .map_err(|_| FeroxError::UartWriteErrorInTryOnce)?;
         self.uart
             .flush()
             .await
-            .map_err(|_| FeroxError::FlushError)?;
+            .map_err(|_| FeroxError::UartFlushError)?;
 
         embassy_time::with_timeout(
             timeout,
@@ -127,15 +127,15 @@ where
         self.uart
             .write_all(line.as_bytes())
             .await
-            .map_err(|_| FeroxError::WriteErrorInWriteLine)?;
+            .map_err(|_| FeroxError::UartWriteErrorInWriteLine)?;
         self.uart
             .write_all(b"\r\n")
             .await
-            .map_err(|_| FeroxError::WriteErrorInWriteLine)?;
+            .map_err(|_| FeroxError::UartWriteErrorInWriteLine)?;
         self.uart
             .flush()
             .await
-            .map_err(|_| FeroxError::FlushError)?;
+            .map_err(|_| FeroxError::UartFlushError)?;
         Ok(())
     }
 }

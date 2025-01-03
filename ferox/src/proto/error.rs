@@ -1,7 +1,8 @@
 use core::fmt;
 use serde::{de, ser, Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, thiserror::Error)]
+#[repr(u16)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, thiserror::Error)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     #[error("Buffer overflow")]
@@ -10,44 +11,21 @@ pub enum Error {
     DeviceError,
     #[error("Echo mismatch")]
     EchoMismatch,
-    #[error("Flush error")]
-    FlushError,
     #[error("Invalid response")]
     InvalidResponse,
-    #[error("Read error")]
-    ReadError,
     #[error("Write error")]
     WriteError,
 
-    #[error("Write error in try_once operation")]
-    WriteErrorInTryOnce = 0x11,
-    #[error("Write error in write_line operation")]
-    WriteErrorInWriteLine,
-    #[error("Write error in CTL200 query")]
-    WriteErrorInCtl200Query,
     #[error("Format error in write response")]
     FormatErrorInWriteResponse,
     #[error("Format error in write error")]
     FormatErrorInWriteError,
-
-    #[error("Bytes to UTF-8 error")]
-    BytesToUTF8Error = 0x1000,
-    #[error("Invalid boolean")]
-    InvalidBoolean,
-    #[error("Parse int error")]
-    ParseIntError,
-    #[error("Parse float error")]
-    ParseFloatError,
 
     #[error("Invalid firmware version")]
     InvalidFirmwareVersion = 0x2000,
 
     #[error("End of file")]
     EndOfFile,
-    #[error("UTF-8 error")]
-    Utf8Error,
-    #[error("Parse i8 error")]
-    ParseI8Error,
     #[error("Unexpected token")]
     UnexpectedToken,
 
@@ -64,11 +42,78 @@ pub enum Error {
     #[error("SMC request serialization error")]
     SmcRequestSerializeError,
 
+    // Errors from Postcard
+    #[error("Postcard serialization error")]
+    PostcardSerError,
+    #[error("Other Postcard error")]
+    PostcardOtherError,
+
+    // Placeholder, to be replaced by the actual error
+    #[error("Placeholder error")]
+    PlaceHolder,
+
+    // TODO(xguo): Move errors below to the correct place
+    // Serde errors.
+    #[error("Invalid response for deserialize")]
+    SerdeBufferFull,
+    #[error("Serde UTF-8 error")]
+    SerdeUtf8Error,
+    #[error("Serde Parse int error")]
+    SerdeParseIntError,
+    #[error("Serde Parse float error")]
+    SerdeParseFloatError,
+    #[error("Serde Parse i8 error")]
+    SerdeParseI8Error,
+    #[error("Serde Invalid boolean")]
+    SerdeInvalidBoolean,
+
+    // FromBytes errors.
+    #[error("UTF-8 error in from_bytes")]
+    FromBytesUTF8Error,
+    #[error("Parse int error in from_bytes")]
+    FromBytesParseIntError,
+    #[error("Parse float error in from_bytes")]
+    FromBytesParseFloatError,
+    #[error("Invalid boolean in from_bytes")]
+    FromBytesInvalidBoolean,
+
+    //
+    #[error("UTF-8 error in from_utf8")]
+    FromUTF8Error,
+
+    // Errors in debug!()
+    // TODO(xguo): Add #[cfg] for defmt errors or wrap them.
+    #[error("UTF-8 error in debug!()")]
+    DefmtUTF8Error,
+
+    // CTL200 errors
+    #[error("Write error in CTL200 execution")]
+    Ctl200WriteError,
+    #[error("Flush error in CTL200 execution")]
+    Ctl200FlushError,
+    #[error("Read error in CTL200 execution")]
+    Ctl200ReadError,
+
+    // Generic Uart errors
+    #[error("Uart Read error")]
+    UartReadError,
+    #[error("Uart Write error in try_once operation")]
+    UartWriteErrorInTryOnce,
+    #[error("Uart Flush error")]
+    UartFlushError,
     #[error("UART request timeout")]
     UartRequestTimeout,
+    #[error("Uart Write error in write_line operation")]
+    UartWriteErrorInWriteLine,
+}
 
-    #[error("Placeholder error")]
-    PlaceHolder = 0xFFFF,
+impl From<postcard::Error> for Error {
+    fn from(e: postcard::Error) -> Self {
+        match e {
+            postcard::Error::SerializeBufferFull => Error::SerdeBufferFull,
+            _ => Error::PostcardOtherError,
+        }
+    }
 }
 
 impl ser::Error for Error {

@@ -24,13 +24,13 @@ impl<F: Flavor> AsciiSerializer<F> {
     fn try_extend(&mut self, data: &[u8]) -> Result<(), FeroxError> {
         self.buffer
             .try_extend(data)
-            .map_err(|_| FeroxError::BufferOverflow)
+            .map_err(|_| FeroxError::SerdeBufferFull)
     }
 
     fn try_push(&mut self, data: u8) -> Result<(), FeroxError> {
         self.buffer
             .try_push(data)
-            .map_err(|_| FeroxError::BufferOverflow)
+            .map_err(|_| FeroxError::SerdeBufferFull)
     }
 
     pub fn finalize(self) -> F {
@@ -232,7 +232,7 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
 
     fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
         let mut s = heapless::String::<10>::new();
-        write!(s, "{}", v).map_err(|_| FeroxError::BufferOverflow)?;
+        write!(s, "{}", v).map_err(|_| FeroxError::SerdeBufferFull)?;
         self.try_extend(s.as_bytes())
     }
 
@@ -258,7 +258,7 @@ impl<F: Flavor> Serializer for &mut AsciiSerializer<F> {
 
     fn serialize_f32(self, v: f32) -> Result<Self::Ok, Self::Error> {
         let mut s = heapless::String::<10>::new();
-        write!(s, "{}", v).map_err(|_| FeroxError::BufferOverflow)?;
+        write!(s, "{}", v).map_err(|_| FeroxError::SerdeBufferFull)?;
         self.try_extend(s.as_bytes())
     }
 

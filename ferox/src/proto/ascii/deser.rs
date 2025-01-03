@@ -1,6 +1,7 @@
 use defmt_or_log::debug;
 use serde::de::{
-    DeserializeSeed, Deserializer, EnumAccess, IntoDeserializer, VariantAccess, Visitor,
+    DeserializeSeed, Deserializer, EnumAccess, VariantAccess, Visitor,
+    value::StrDeserializer,
 };
 
 use crate::proto::{error::Error as FeroxError, Result};
@@ -91,7 +92,7 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
         match token {
             b"1" => visitor.visit_bool(true),
             b"0" => visitor.visit_bool(false),
-            _ => Err(FeroxError::InvalidBoolean),
+            _ => Err(FeroxError::SerdeInvalidBoolean),
         }
     }
 
@@ -114,8 +115,8 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
         V: Visitor<'de>,
     {
         let token = self.next_token().ok_or(FeroxError::EndOfFile)?;
-        let s = core::str::from_utf8(token).map_err(|_| FeroxError::Utf8Error)?;
-        let parsed = s.parse::<i32>().map_err(|_| FeroxError::ParseIntError)?;
+        let s = core::str::from_utf8(token).map_err(|_| FeroxError::SerdeUtf8Error)?;
+        let parsed = s.parse::<i32>().map_err(|_| FeroxError::SerdeParseIntError)?;
         visitor.visit_i32(parsed)
     }
 
@@ -159,8 +160,8 @@ impl<'de> Deserializer<'de> for &mut AsciiDeserializer<'de> {
         V: Visitor<'de>,
     {
         let token = self.next_token().ok_or(FeroxError::EndOfFile)?;
-        let s = core::str::from_utf8(token).map_err(|_| FeroxError::Utf8Error)?;
-        let parsed = s.parse::<f32>().map_err(|_| FeroxError::ParseFloatError)?;
+        let s = core::str::from_utf8(token).map_err(|_| FeroxError::SerdeUtf8Error)?;
+        let parsed = s.parse::<f32>().map_err(|_| FeroxError::SerdeParseFloatError)?;
         visitor.visit_f32(parsed)
     }
 
@@ -333,9 +334,9 @@ impl<'de, 'a> EnumAccess<'de> for EnumRef<'a, 'de> {
     where
         V: DeserializeSeed<'de>,
     {
-        let s = core::str::from_utf8(self.variant_name).map_err(|_| FeroxError::Utf8Error)?;
+        let s = core::str::from_utf8(self.variant_name).map_err(|_| FeroxError::SerdeUtf8Error)?;
         debug!("Deserializing variant name: {:?}", s);
-        let v = seed.deserialize(s.into_deserializer())?;
+        let v = seed.deserialize(StrDeserializer::<FeroxError>::new(s))?;
         let has_value = self.de.peek_token().is_some();
         Ok((
             v,

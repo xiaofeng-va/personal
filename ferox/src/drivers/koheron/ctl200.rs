@@ -43,7 +43,7 @@ impl<'a> FromBytes<'a> for bool {
         match bytes {
             b"0" => Ok(false),
             b"1" => Ok(true),
-            _ => Err(Error::InvalidBoolean),
+            _ => Err(Error::FromBytesInvalidBoolean),
         }
     }
 }
@@ -52,9 +52,9 @@ impl<'a> FromBytes<'a> for bool {
 impl<'a> FromBytes<'a> for i32 {
     fn from_bytes(bytes: &'a [u8]) -> Result<Self> {
         core::str::from_utf8(bytes)
-            .map_err(|_| Error::BytesToUTF8Error)?
+            .map_err(|_| Error::FromBytesUTF8Error)?
             .parse()
-            .map_err(|_| Error::ParseIntError)
+            .map_err(|_| Error::FromBytesParseIntError)
     }
 }
 
@@ -62,9 +62,9 @@ impl<'a> FromBytes<'a> for i32 {
 impl<'a> FromBytes<'a> for f32 {
     fn from_bytes(bytes: &'a [u8]) -> Result<Self> {
         core::str::from_utf8(bytes)
-            .map_err(|_| Error::BytesToUTF8Error)?
+            .map_err(|_| Error::FromBytesUTF8Error)?
             .parse()
-            .map_err(|_| Error::ParseFloatError)
+            .map_err(|_| Error::FromBytesParseFloatError)
     }
 }
 
@@ -415,7 +415,7 @@ where
         let serial = self.get::<&'_ [u8]>("serial").await?;
         debug!(
             "serial: {:?}",
-            from_utf8(serial).map_err(|_| Error::BytesToUTF8Error)?
+            from_utf8(serial).map_err(|_| Error::DefmtUTF8Error)?
         );
         Ok(serial)
     }
@@ -425,7 +425,7 @@ where
         let data = self.get::<&'_ [u8]>("userdata").await?;
         debug!(
             "userdata: {:?}",
-            from_utf8(data).map_err(|_| Error::BytesToUTF8Error)?
+            from_utf8(data).map_err(|_| Error::DefmtUTF8Error)?
         );
         Ok(data)
     }
@@ -437,7 +437,7 @@ where
         }
         debug!(
             "userdata write: {:?}",
-            from_utf8(data).map_err(|_| Error::BytesToUTF8Error)?
+            from_utf8(data).map_err(|_| Error::DefmtUTF8Error)?
         );
         self.set("userdata write", Value::String(data)).await
     }
@@ -474,7 +474,7 @@ where
     pub async fn version(&mut self) -> Result<&[u8]> {
         debug!("Ctl200::version() 0");
         let resp: &[u8] = self.get::<&[u8]>("version").await?;
-        let t = core::str::from_utf8(resp).map_err(|_| Error::BytesToUTF8Error)?;
+        let t = core::str::from_utf8(resp).map_err(|_| Error::FromUTF8Error)?;
         debug!("version: {:?}", t);
         Ok(resp)
     }
@@ -484,15 +484,15 @@ where
         debug!("Sending command: '{}'", request);
         self.uart.write_all(request.as_bytes()).await.map_err(|_| {
             debug!("Failed to write command");
-            Error::WriteErrorInCtl200Query
+            Error::Ctl200WriteError
         })?;
         self.uart.write_all(CRLF).await.map_err(|_| {
             debug!("Failed to write CRLF");
-            Error::WriteErrorInCtl200Query
+            Error::Ctl200WriteError
         })?;
         self.uart.flush().await.map_err(|_| {
             debug!("Failed to flush UART");
-            Error::FlushError
+            Error::Ctl200FlushError
         })?;
 
         debug!("Waiting for response...");
@@ -545,7 +545,7 @@ where
             self.uart
                 .read(&mut byte)
                 .await
-                .map_err(|_| Error::ReadError)?;
+                .map_err(|_| Error::Ctl200ReadError)?;
 
             // Add to buffer
             self.buf[self.buf_pos] = byte[0];

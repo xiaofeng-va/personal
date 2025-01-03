@@ -19,7 +19,7 @@ where
     let t = serializer
         .finalize()
         .release()
-        .map_err(|_| FeroxError::BufferOverflow)?;
+        .map_err(|_| FeroxError::SerdeBufferFull)?;
     Ok(t)
 }
 
