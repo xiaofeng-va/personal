@@ -1,8 +1,7 @@
 use core::fmt;
-
 use serde::{de, ser, Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize,thiserror::Error)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     // TODO(xguo): Reorganize errors.
@@ -92,8 +91,6 @@ impl core::fmt::Display for Error {
         }
     }
 }
-
-impl core::error::Error for Error {}
 
 impl ser::Error for Error {
     fn custom<T>(_msg: T) -> Self
