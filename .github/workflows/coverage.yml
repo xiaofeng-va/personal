@@ -72,3 +72,18 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v2
+
+      - name: Post status to GitHub
+        if: success()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: "success",
+              description: "Coverage report generated successfully.",
+              context: "Coverage Report",
+              target_url: process.env.url
+            })
